@@ -1,0 +1,2 @@
+.dimension-preview{margin-top:14px;border:1px solid #c9d7cf;background:#f2f6f1;padding:11px 14px;display:flex;justify-content:space-between;gap:12px;font-size:12px}.dimension-preview span{font:12px Consolas,monospace;color:var(--green)}
+.required-dimension{border-left:3px solid #c07823;padding-left:11px}.required-dimension input{background:#fffdf5;border-color:#d9c58f}

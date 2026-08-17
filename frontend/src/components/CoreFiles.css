@@ -1,0 +1,14 @@
+.core-file-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.core-file { min-height:145px; border:1px solid #aabbb1; background:#f7faf7; padding:18px; color:var(--ink); text-decoration:none; display:grid; grid-template-columns:58px 1fr auto; gap:16px; align-items:center; transition:.18s ease; }
+.core-file:hover { transform:translateY(-2px); box-shadow:0 10px 24px #17211d16; border-color:var(--green); }
+.core-file>b { width:58px; height:58px; display:grid; place-items:center; background:var(--green); color:white; font:700 17px Consolas,monospace; }
+.core-file.pdf>b { background:#9a402f; }
+.core-file div { min-width:0; }
+.core-file strong,.core-file span { display:block; overflow:hidden; text-overflow:ellipsis; }
+.core-file strong { font-size:14px; white-space:nowrap; }
+.core-file span { color:var(--muted); font-size:11px; margin-top:6px; }
+.core-file small { align-self:end; color:var(--green); white-space:nowrap; }
+.supporting-files { margin-top:14px; border:1px solid var(--line); }
+.supporting-files summary { cursor:pointer; padding:13px 15px; color:var(--muted); font-size:12px; font-weight:600; }
+.supporting-files .file-grid { padding:0 14px 14px; grid-template-columns:1fr 1fr; }
+@media(max-width:760px) { .core-file-grid { grid-template-columns:1fr; } .core-file { grid-template-columns:52px 1fr; } .core-file>b { width:52px; height:52px; } .core-file small { grid-column:2; } }

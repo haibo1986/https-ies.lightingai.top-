@@ -1,0 +1,26 @@
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/*
+!backend/outputs/.gitkeep
+frontend/node_modules/
+frontend/dist/
+*.pyc
+.DS_Store
+
+# 运行与构建产物
+backend/tmp/
+backend/output/
+output/
+tmp/
+
+# 手动快照与部署包（不进版本库，防止打包客户数据）
+snapshots/
+deployment-packages/
+上传到github 上2026年7月17号/
+
+# Claude 本地配置
+.claude/
+
