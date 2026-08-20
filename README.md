@@ -29,11 +29,23 @@ frontend/                React + Vite 单页应用
 
 需要 Python 3.10 或更高版本。在项目根目录执行：
 
+**Windows（PowerShell）：**
+
 ```powershell
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+**WSL / Linux（推荐，性能更好）：**
+
+```bash
+cd backend
+python3 -m venv .venv
+.venv/bin/activate
+pip install -r requirements.txt python-docx
 uvicorn app.main:app --reload
 ```
 
@@ -43,13 +55,32 @@ uvicorn app.main:app --reload
 
 需要 Node.js 20 或更高版本。另开一个终端，在项目根目录执行：
 
+**Windows（PowerShell）：**
+
 ```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
+**WSL / Linux：**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 浏览器访问 `http://127.0.0.1:5173`。Vite 开发服务器会把 `/api` 请求代理到本地后端。若前后端分开部署，可通过 `VITE_API_BASE_URL` 指定 API 地址。
+
+## 备份
+
+项目主目录位于 WSL Linux 文件系统（`~/projects/ies`），Windows 常规备份不覆盖该位置。每次大改动后请执行：
+
+```bash
+bash tools/backup.sh      # 打包到 E:\ies-backups\（排除 venv/node_modules/.git）
+git push                  # 源码推送 GitHub
+```
 
 ## 使用方法
 
