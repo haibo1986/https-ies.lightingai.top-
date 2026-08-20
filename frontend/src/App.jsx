@@ -72,7 +72,7 @@ export default function App() {
   return <>
     <header className="hero"><div className="hero-inner">
       <div className="brand"><span className="brand-mark">IES</span><span>PHOTOMETRIC TOOLS</span></div>
-      <div className="hero-copy"><p className="eyebrow light">INTERNAL WORKSPACE</p><h1>内部 IES<br/><em>快速换算工具</em></h1><p>基于原始实测数据，按目标光通量比例生成用于前期方案模拟的估算版 IES 文件。</p></div>
+      <div className="hero-copy"><p className="eyebrow light">海波AI 赋能LED 照明行业</p><h1>内部 IES<br/><em>快速换算工具</em></h1><p>基于原始实测数据，按目标光通量比例生成用于前期方案模拟的估算版 IES 文件。</p></div>
       <div className="formula"><span>SCALING PRINCIPLE</span><code>目标光通量<br/>───────── = 缩放比例<br/>原始光通量</code></div>
     </div></header>
     <main>
@@ -83,6 +83,15 @@ export default function App() {
       {upload && <TargetForm form={form} setForm={setForm} onGenerate={handleGenerate} loading={generating} upload={upload} generateError={error}/>} 
       <ResultPanel result={result}/>
     </main>
-    <footer><span>IES SCALING TOOL · MVP</span><span>所有正式交付项目均应重新进行光度实测</span></footer>
+    <footer>
+      <div className="footer-inner">
+        <div className="footer-brand"><span className="footer-mark">IES</span><span>IES SCALING TOOL · MVP</span></div>
+        <div className="footer-contact">
+          <span className="footer-contact-label">你的 AI 使用顾问</span>
+          <a className="footer-contact-tel" href="tel:13601845391">周海波 13601845391</a>
+        </div>
+      </div>
+      <p className="footer-note">所有正式交付项目均应重新进行光度实测</p>
+    </footer>
   </>
 }
