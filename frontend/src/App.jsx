@@ -10,7 +10,7 @@ const EMPTY = {
   target_luminous_flux_lm: '', change_type: 'power_only',
   target_luminous_length_mm: '', target_luminous_width_mm: '',
   source_report_id: '', source_report_name: '', source_report_preview_url: '', source_report_analysis: null, source_field_mapping: {},
-  report_supplement: {},
+  report_supplement: {}, center_photometry: false,
 }
 
 export default function App() {
@@ -54,6 +54,7 @@ export default function App() {
       target_luminous_flux_lm: Number(form.target_luminous_flux_lm),
       target_model: form.target_model,
       change_type: form.change_type,
+      center_photometry: !!form.center_photometry,
       report_supplement: Object.fromEntries(Object.entries(form.report_supplement || {}).filter(([key, value]) => value !== '' && key !== 'company_logo_name').map(([key,value]) => [key, ['voltage_v','current_a','power_factor','cct_k','cri_ra','fixture_length_mm','fixture_width_mm','fixture_height_mm','calculation_height_m','plane_extent_m'].includes(key) ? Number(value) : value])),
     }
     if (form.source_report_id) payload.source_report_id = form.source_report_id

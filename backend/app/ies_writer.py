@@ -40,6 +40,8 @@ class IESWriter:
             f"[MORE] Target luminous flux: {_format_number(scaled_data['target_luminous_flux_lm'])} lm",
             f"[MORE] Target power: {_format_number(scaled_data['target_power_w'])} W",
         ]
+        if scaled_data.get("centering_note"):
+            notes.append(f"[MORE] {scaled_data['centering_note']}")
         if "target_luminous_length_mm" in scaled_data:
             notes.append(f"[MORE] Target luminous length: {_format_number(scaled_data['target_luminous_length_mm'])} mm")
         if "target_luminous_width_mm" in scaled_data:

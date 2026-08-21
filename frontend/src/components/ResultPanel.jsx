@@ -20,6 +20,7 @@ export default function ResultPanel({ result }) {
       <span className="estimate-badge">ESTIMATED · 非实验室实测</span>
     </header>
     <p className="result-warning">输出仅用于方案模拟与内部评估，不可替代光度实验室的重新测试、认证或验收文件。</p>
+    {result.centering_applied && result.centering && <p className="centering-note">已对中校正：原峰值方向 C{number(result.centering.original_peak_c_angle, 1)}° / γ{number(result.centering.original_peak_gamma_angle, 1)}°，已旋转至正下方；光束角与光通量为旋转后重算值。{result.centering.out_of_range_ratio > 0.1 && <b>注意：原垂直角范围有限，大偏移校正后部分方向数据缺失，结果可信度下降，建议核实。</b>}</p>}
     <div className="result-tabs" role="tablist" aria-label="生成结果">
       {tabs.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>{label}</button>)}
     </div>

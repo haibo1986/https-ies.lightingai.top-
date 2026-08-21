@@ -19,6 +19,8 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
   const [reportUploading, setReportUploading] = useState(false)
   const [reportError, setReportError] = useState('')
   const risk = CHANGES[form.change_type]
+  const peak = upload?.photometry?.peak_direction
+  const peakGamma = peak ? Number(peak.gamma_angle || 0) : null
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }))
   const applyEstimate = ({ flux, changeType, targetLength, targetWidth }) => setForm(current => ({
     ...current, target_luminous_flux_lm: String(flux), change_type: changeType,
@@ -50,6 +52,15 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
         <label className="required-dimension"><span>发光面宽度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_width_mm" type="number" min="0.01" step="any" required value={form.target_luminous_width_mm} onChange={update}/><i>mm</i></div></label>
         <FluxEstimator sourceFlux={form.source_luminous_flux_lm} targetPower={form.target_power_w} parsedInfo={upload.parsed_info} onApply={applyEstimate}/>
         <label className="wide"><span>变更类型 <b>*</b></span><select name="change_type" value={form.change_type} onChange={update}>{Object.entries(CHANGES).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></label>
+        <label className="wide"><span>配光对中校正</span><div className="check-field">
+          <input type="checkbox" name="center_photometry" checked={!!form.center_photometry} onChange={event => setForm(current => ({ ...current, center_photometry: event.target.checked }))}/>
+          <div className="check-field-copy">
+            <p>勾选后生成时将光强分布整体旋转，使最大光强对准正下方（γ=0°）。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光请勿勾选。</p>
+            {peak && (peakGamma <= 1
+              ? <p className="peak-hint ok">当前文件最大光强方向 C{Number(peak.c_angle).toFixed(1)}° / γ{peakGamma.toFixed(1)}°，已基本居中，无需校正。</p>
+              : <p className="peak-hint warn">当前文件最大光强方向 C{Number(peak.c_angle).toFixed(1)}° / γ{peakGamma.toFixed(1)}°，偏离正下方约 {peakGamma.toFixed(1)}°。若灯具并非偏光设计，建议勾选对中校正。</p>)}
+          </div>
+        </div></label>
       </div>
       {form.target_luminous_length_mm && form.target_luminous_width_mm && <div className="dimension-preview"><b>发光面积与亮度计算</b><span>{form.target_luminous_length_mm} × {form.target_luminous_width_mm} mm · 面积 {(Number(form.target_luminous_length_mm)*Number(form.target_luminous_width_mm)/1000000).toFixed(4)} m²</span></div>}
 

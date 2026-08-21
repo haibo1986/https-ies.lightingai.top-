@@ -10,6 +10,8 @@ from reportlab.pdfgen import canvas
 from app import main
 from app.main import OUTPUT_DIR, SOURCE_REPORTS, UPLOADS, app
 from app.ies_parser import IESParser
+from app.photometry import build_photometry_summary
+from test_core import tilted_ies_text
 
 
 client = TestClient(app)
@@ -254,6 +256,33 @@ def test_expired_runtime_files_are_cleaned_up():
     os.utime(path, (old_time, old_time))
     main.cleanup_expired_files()
     assert not path.exists()
+
+
+def test_generate_with_photometric_centering(tmp_path: Path):
+    tilted = tmp_path / "tilted.ies"
+    tilted.write_text(tilted_ies_text(), encoding="utf-8")
+    with tilted.open("rb") as file:
+        upload = client.post("/api/upload", files={"file": ("tilted.ies", file, "application/octet-stream")})
+    assert upload.status_code == 200
+    body = upload.json()
+    assert body["photometry"]["peak_direction"]["gamma_angle"] == 30
+    response = client.post("/api/generate", json={
+        "uploaded_file_id": body["uploaded_file_id"], "source_luminous_flux_lm": 1000,
+        "target_luminous_flux_lm": 1500, "target_model": "Centered/Model",
+        "target_power_w": 36, "target_luminous_length_mm": 300, "target_luminous_width_mm": 50,
+        "change_type": "power_only", "center_photometry": True,
+    })
+    # 带 center_photometry 字段不发 500（防 model_dump 透传回归）
+    assert response.status_code == 200
+    result = response.json()
+    assert result["centering_applied"] is True
+    assert result["centering"]["original_peak_c_angle"] == 90
+    assert result["centering"]["original_peak_gamma_angle"] == 30
+    assert result["ies_preview"]["photometry"]["peak_direction"]["gamma_angle"] == 0
+    generated = IESParser.parse(OUTPUT_DIR / result["ies_file"])
+    assert build_photometry_summary(generated)["peak_direction"]["gamma_angle"] == 0
+    assert client.get(result["ies_download_url"]).status_code == 200
+    cleanup_result(result)
 
 
 def test_generation_failure_rolls_back_all_outputs(sample_path: Path, monkeypatch):

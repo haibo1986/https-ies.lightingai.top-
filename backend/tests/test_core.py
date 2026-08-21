@@ -12,6 +12,45 @@ from app.report_model import build_report_data
 from app.classic_report import generate_classic_pdf
 from app.standard_report import validate_standard_report
 from app.risk_rules import evaluate_risk
+from app.photometry_center import center_photometry
+
+
+def tilted_ies_text(c_peak=90.0, gamma_peak=30.0, sigma=20.0) -> str:
+    """合成一个峰值方向在 (C_peak, γ_peak) 的高斯型配光 IES 文件文本。"""
+    vertical = list(range(0, 91, 10))
+    horizontal = list(range(0, 360, 30))
+    peak_dir = (
+        math.sin(math.radians(gamma_peak)) * math.cos(math.radians(c_peak)),
+        math.sin(math.radians(gamma_peak)) * math.sin(math.radians(c_peak)),
+        -math.cos(math.radians(gamma_peak)),
+    )
+    lines = [
+        "IESNA:LM-63-2002",
+        "[TEST] Synthetic tilted fixture",
+        "TILT=NONE",
+        f"1 1000 1 {len(vertical)} {len(horizontal)} 1 2 0.1 0.2 0.3",
+        "1 1 100",
+        " ".join(str(value) for value in vertical),
+        " ".join(str(value) for value in horizontal),
+    ]
+    for c in horizontal:
+        row = []
+        for g in vertical:
+            direction = (
+                math.sin(math.radians(g)) * math.cos(math.radians(c)),
+                math.sin(math.radians(g)) * math.sin(math.radians(c)),
+                -math.cos(math.radians(g)),
+            )
+            dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(direction, peak_dir))))
+            row.append(f"{1000 * math.exp(-(math.degrees(math.acos(dot)) ** 2) / (2 * sigma ** 2)):.3f}")
+        lines.append(" ".join(row))
+    return "\n".join(lines) + "\n"
+
+
+def _parse_tilted(tmp_path: Path, **kwargs) -> dict:
+    path = tmp_path / "tilted.ies"
+    path.write_text(tilted_ies_text(**kwargs), encoding="utf-8")
+    return IESParser.parse(path)
 
 
 def test_parser_reads_complete_matrix(sample_path: Path):
@@ -202,6 +241,87 @@ def test_writer_and_report_include_disclaimer(sample_path: Path, tmp_path: Path)
     assert reparsed["input_watts"] == 30
     assert "使用声明" in report_path.read_text(encoding="utf-8")
     assert sanitize_file_stem(' A/B:*? ') == "A_B___"
+
+
+def test_center_photometry_aligns_peak_to_nadir(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path)
+    scaled = IESScaler.scale(parsed, 1000, 1500, "Tilted", 36, "power_only")
+    centered = center_photometry(scaled)
+    summary = build_photometry_summary(centered)
+    assert summary["peak_direction"]["gamma_angle"] == 0
+    assert summary["peak_direction"]["c_angle"] == 0
+    assert summary["peak_direction"]["intensity"] == 1500
+    assert centered["max_candela"] == 1500
+    assert centered["centering"]["original_peak_c_angle"] == 90
+    assert centered["centering"]["original_peak_gamma_angle"] == 30
+    assert len(centered["candela_values"]) == centered["num_horizontal_angles"] == 12
+
+
+def test_center_photometry_expands_symmetric_c_planes():
+    row_c0 = [100.0, 50.0, 10.0]
+    row_c90 = [80.0, 40.0, 8.0]
+    parsed = {
+        "vertical_angles": [0.0, 45.0, 90.0],
+        "horizontal_angles": [0.0, 90.0],
+        "candela_values": [row_c0, row_c90],
+        "candela_multiplier": 1,
+    }
+    centered = center_photometry(parsed)
+    assert centered["horizontal_angles"] == [0.0, 90.0, 180.0, 270.0, 360.0]
+    assert centered["num_horizontal_angles"] == 5
+    # 峰值在 (C0, γ0) → 旋转为单位变换；γ=0 行为正下方光强（与方位角无关，全部取峰值），
+    # 其余各行按 LM-63 镜像规则映射回源平面
+    assert centered["candela_values"] == [
+        [100.0, 50.0, 10.0],
+        [100.0, 40.0, 8.0],
+        [100.0, 50.0, 10.0],
+        [100.0, 40.0, 8.0],
+        [100.0, 50.0, 10.0],
+    ]
+
+
+def test_center_photometry_preserves_flux_within_tolerance(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path, c_peak=90.0, gamma_peak=25.0)
+    before = build_photometry_summary(parsed)["integrated_downward_flux_lm"]
+    centered = center_photometry(parsed)
+    after = build_photometry_summary(centered)["integrated_downward_flux_lm"]
+    assert after == pytest.approx(before, rel=0.03)
+
+
+def test_center_photometry_roundtrip_writes_note_and_reparses(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path)
+    scaled = IESScaler.scale(parsed, 1000, 1500, "Tilted", 36, "power_only")
+    centered = center_photometry(scaled)
+    ies_path = tmp_path / "centered.ies"
+    IESWriter.write(centered, ies_path)
+    output = ies_path.read_text(encoding="utf-8")
+    assert "[MORE] Photometric centering applied" in output
+    reparsed = IESParser.parse(ies_path)
+    assert reparsed["num_horizontal_angles"] == len(reparsed["horizontal_angles"]) == 12
+    assert build_photometry_summary(reparsed)["peak_direction"]["gamma_angle"] == 0
+
+
+def test_center_photometry_large_tilt_fills_out_of_range_with_zeros(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path, c_peak=0.0, gamma_peak=40.0)
+    centered = center_photometry(parsed)
+    assert centered["centering"]["out_of_range_ratio"] > 0
+    # 垂直角只到 90°，40° 大倾斜旋转后远侧方向无数据 → 填 0
+    assert any(value == 0 for row in centered["candela_values"] for value in row)
+
+
+def test_center_photometry_uses_candela_multiplier(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path)
+    parsed["candela_multiplier"] = 2
+    parsed["candela_values"] = [[value / 2 for value in row] for row in parsed["candela_values"]]
+    centered = center_photometry(parsed)
+    assert centered["max_candela"] == 1000  # 原始峰值 500 raw × 2 倍率
+
+
+def test_center_photometry_rejects_empty_peak(tmp_path: Path):
+    parsed = _parse_tilted(tmp_path)
+    parsed["candela_values"] = [[0.0] * len(row) for row in parsed["candela_values"]]
+    with pytest.raises(ValueError, match="峰值"):
+        center_photometry(parsed)
 
 
 def test_standard_report_model_pdf_and_validation(sample_path: Path, tmp_path: Path):

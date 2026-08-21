@@ -24,6 +24,7 @@ from .source_report import analyze_source_pdf
 from .classic_report import generate_classic_pdf
 from .pdf_template import generate_from_source_template
 from .standard_report import validate_standard_report
+from .photometry_center import center_photometry
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -81,6 +82,7 @@ class GenerateRequest(BaseModel):
     source_field_mapping: dict[str, "FieldBox"] | None = None
     report_supplement: ReportSupplement = Field(default_factory=ReportSupplement)
     change_type: Literal["power_only", "led_count_change", "length_change", "beam_angle_change", "lens_change", "optical_structure_change"]
+    center_photometry: bool = False
 
 
 class FieldBox(BaseModel):
@@ -256,8 +258,11 @@ def generate_ies(payload: GenerateRequest) -> dict[str, Any]:
     try:risk=evaluate_risk(payload.change_type)
     except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     if not risk["allow_generate"]:return {**risk}
-    try:scaled=IESScaler.scale(record["parsed"],**payload.model_dump(exclude={"uploaded_file_id","source_report_id","source_field_mapping","report_supplement"}))
+    try:scaled=IESScaler.scale(record["parsed"],**payload.model_dump(exclude={"uploaded_file_id","source_report_id","source_field_mapping","report_supplement","center_photometry"}))
     except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    if payload.center_photometry:
+        try:scaled=center_photometry(scaled)
+        except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     stem=sanitize_file_stem(payload.target_model)
     try:ies_path,md_path,html_path,pdf_path=reserve_output_paths(stem)
     except OSError as exc:raise HTTPException(status_code=500,detail="无法创建输出文件，请检查磁盘空间和目录权限。") from exc
@@ -294,7 +299,7 @@ def generate_ies(payload: GenerateRequest) -> dict[str, Any]:
                     template_path.unlink(missing_ok=True);template_path=None
                 logger.warning("原版式报告叠加失败，仅输出标准报告", exc_info=True)
     validation=validate_standard_report(report_data,ies_path,pdf_path)
-    return {**risk,"scale_factor":scaled["scale_factor"],"pdf_template_applied":template_applied,"report_schema_version":report_data["schema_version"],"ies_file":ies_path.name,"report_file":md_path.name,"ies_download_url":f"/api/download/{ies_path.name}","report_download_url":f"/api/download/{md_path.name}","html_report_file":html_path.name,"pdf_report_file":pdf_path.name,"html_report_url":f"/api/view/{html_path.name}","pdf_report_url":f"/api/view/{pdf_path.name}","html_report_download_url":f"/api/download/{html_path.name}","pdf_report_download_url":f"/api/download/{pdf_path.name}","markdown_report_url":f"/api/download/{md_path.name}","template_pdf_file":template_path.name if template_path else None,"template_pdf_url":f"/api/view/{template_path.name}" if template_path else None,"template_pdf_download_url":f"/api/download/{template_path.name}" if template_path else None,"source_report":{"file_name":source_report["original_name"],"preview_url":f"/api/source-report/{payload.source_report_id}","analysis":source_report["analysis"]} if source_report else None,"ies_preview":{"target_model":scaled["target_model"],"target_power_w":scaled["target_power_w"],"target_luminous_flux_lm":scaled["target_luminous_flux_lm"],"max_candela":scaled["max_candela"],"length":scaled["length"],"width":scaled["width"],"photometry":build_photometry_summary(scaled),"validation":validation,"validation_passed":all(item["ok"] for item in validation),"text":"\n".join(ies_path.read_text(encoding="utf-8").splitlines()[:120])}}
+    return {**risk,"scale_factor":scaled["scale_factor"],"centering_applied":bool(scaled.get("centering")),"centering":scaled.get("centering"),"pdf_template_applied":template_applied,"report_schema_version":report_data["schema_version"],"ies_file":ies_path.name,"report_file":md_path.name,"ies_download_url":f"/api/download/{ies_path.name}","report_download_url":f"/api/download/{md_path.name}","html_report_file":html_path.name,"pdf_report_file":pdf_path.name,"html_report_url":f"/api/view/{html_path.name}","pdf_report_url":f"/api/view/{pdf_path.name}","html_report_download_url":f"/api/download/{html_path.name}","pdf_report_download_url":f"/api/download/{pdf_path.name}","markdown_report_url":f"/api/download/{md_path.name}","template_pdf_file":template_path.name if template_path else None,"template_pdf_url":f"/api/view/{template_path.name}" if template_path else None,"template_pdf_download_url":f"/api/download/{template_path.name}" if template_path else None,"source_report":{"file_name":source_report["original_name"],"preview_url":f"/api/source-report/{payload.source_report_id}","analysis":source_report["analysis"]} if source_report else None,"ies_preview":{"target_model":scaled["target_model"],"target_power_w":scaled["target_power_w"],"target_luminous_flux_lm":scaled["target_luminous_flux_lm"],"max_candela":scaled["max_candela"],"length":scaled["length"],"width":scaled["width"],"photometry":build_photometry_summary(scaled),"validation":validation,"validation_passed":all(item["ok"] for item in validation),"text":"\n".join(ies_path.read_text(encoding="utf-8").splitlines()[:120])}}
 
 
 def _safe_output(file_name: str) -> Path:
