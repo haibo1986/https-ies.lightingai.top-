@@ -1,222 +1,120 @@
-"""配光对中校正：把光强分布整体旋转，使最大光强对准正下方（γ=0°）。
+"""配光对中校正（逐平面平移版）：每条 C 平面曲线按自身峰值 γ 偏移整体平移，
+使峰值对准 γ=0°。曲线形状与各平面光束角严格不变。
 
 适用于「灯具本身非偏光设计、但实测时未完全居中导致配光曲线偏移」的场景。
-算法：按 LM-63 对称规则把 C 平面展开为完整 0-360 网格 → γ=0 行均值归一 →
-在下半球（γ≤90°）找到全局峰值方向 (C_p, γ_p) → 旋转 R = Ry(γ_p)·Rz(−C_p)
-把峰值映射到 (0,0,−1) → 新网格逐点反旋转回原坐标后 PCHIP（C 向保单调
-三次 Hermite）+ γ 向线性插值。
-方向向量约定：x = sinγ·cosC, y = sinγ·sinC, z = −cosγ（γ=0 即正下方）。
+算法：对每个 C 平面，在 γ≤90° 内找该平面的峰值方向 γ_peak，把该平面曲线
+沿 γ 轴平移 −γ_peak（新 γ' = 原 γ − γ_peak），峰值即落在 γ=0。平移后
+γ' + γ_peak 超出原垂直角范围的方向填 0（原数据中没有的信息不虚构）。
 """
 
 from __future__ import annotations
 
 import bisect
-import math
 from copy import deepcopy
 from typing import Any
 
-
-def expand_c_planes(horizontal_angles: list[float]) -> list[float]:
-    """按 LM-63 对称规则把 C 平面展开为完整 0-360 网格（round(6) 去重排序）。"""
-    last_angle = max(horizontal_angles)
-    if last_angle <= 90:
-        candidates = [angle for c in horizontal_angles for angle in (c, 180 - c, 180 + c, 360 - c)]
-    elif last_angle <= 180:
-        candidates = [angle for c in horizontal_angles for angle in (c, 360 - c)]
-    else:
-        candidates = list(horizontal_angles)
-    grid: list[float] = []
-    for angle in candidates:
-        rounded = round(angle, 6)
-        if rounded not in grid:
-            grid.append(rounded)
-    grid.sort()
-    return grid
+from .photometry import build_photometry_summary
 
 
-def _expand_matrix(horizontal_angles: list[float], candela_values: list[list[float]], c_grid: list[float]) -> list[list[float]]:
-    """把矩阵按展开后的 C 网格重组：镜像平面映射回源平面取数；首平面非 C0 时环绕合成 C=0 行。"""
-    last_angle = max(horizontal_angles)
-    by_angle = {round(c, 6): list(row) for c, row in zip(horizontal_angles, candela_values)}
-
-    def source_plane(angle: float) -> float:
-        if last_angle <= 90:
-            return angle if angle <= 90 else (180 - angle if angle < 180 else (angle - 180 if angle < 270 else 360 - angle))
-        if last_angle <= 180:
-            return angle if angle <= 180 else 360 - angle
-        return angle
-
-    matrix = [by_angle[round(source_plane(angle), 6)] for angle in c_grid]
-    if 0 not in c_grid:
-        a, b = c_grid[-1], c_grid[0] + 360.0
-        t = (360.0 - a) / (b - a)
-        zero_row = [round(va + t * (vb - va), 3) for va, vb in zip(matrix[-1], matrix[0])]
-        c_grid.insert(0, 0.0)
-        matrix.insert(0, zero_row)
-    return matrix
-
-
-def _inverse_rotation(c_prime: float, gamma_prime: float, cp_deg: float, gp_deg: float) -> tuple[float, float]:
-    """新网格方向 (C′,γ′) 反旋转回原坐标 (C,γ)。R = Ry(γp)·Rz(−Cp)，此处用转置。"""
-    gamma_rad = math.radians(gamma_prime)
-    vx = math.sin(gamma_rad) * math.cos(math.radians(c_prime))
-    vy = math.sin(gamma_rad) * math.sin(math.radians(c_prime))
-    vz = -math.cos(gamma_rad)
-    gp, cp = math.radians(gp_deg), math.radians(cp_deg)
-    sg, cg = math.sin(gp), math.cos(gp)
-    x1 = cg * vx - sg * vz
-    z1 = sg * vx + cg * vz
-    sc, ss = math.cos(cp), math.sin(cp)
-    x = sc * x1 - ss * vy
-    y = ss * x1 + sc * vy
-    z = z1
-    gamma = math.degrees(math.acos(max(-1.0, min(1.0, -z))))
-    c = math.degrees(math.atan2(y, x)) % 360.0
-    return c, gamma
-
-
-def _bracket(angles: list[float], value: float) -> tuple[int, int, float]:
+def _bracket_index(angles: list[float], value: float) -> int:
     index = bisect.bisect_right(angles, value) - 1
     if index < 0:
         index = 0
     if index >= len(angles) - 1:
         index = len(angles) - 2
-    a, b = angles[index], angles[index + 1]
-    t = 0.0 if b == a else (value - a) / (b - a)
-    return index, index + 1, t
+    return index
 
 
-def _pchip(c_grid: list[float], rows: list[list[float]]) -> tuple[list[float], list[float], list[list[tuple[float, float, float, float]]]]:
-    """C 向周期 PCHIP（Fritsch–Carlson 保单调三次 Hermite）插值。
-
-    问题背景：粗 C 网格（如 45° 步长）+ 窄光束时，双线性跨区间有折角（曲线变形），
-    普通三次样条在尖峰附近会过冲（产生假峰/凹陷）。PCHIP 是 C¹ 光滑、节点精确过值
-    且绝不超调的保形插值——节点间数据单调则插值单调，最适合"粗网格填坑"。
-    返回 (knots, h, segs)，segs[γ行][i] = (a,b,c,d)，f(t) = a + b·t + c·t² + d·t³，t ∈ [0, h[i]]。
-    """
-    knots = list(c_grid)
-    rows = [list(row) for row in rows]
-    if knots and round(knots[-1], 6) == 360.0:
-        knots = knots[:-1]  # 360 是 0 的周期闭合重复点，不作为独立节点
-        rows = [row[:-1] for row in rows]
-    size = len(knots)
-    h = [knots[(i + 1) % size] + (360.0 if i == size - 1 else 0.0) - knots[i] for i in range(size)]
-    segs: list[list[tuple[float, float, float, float]]] = []
-    for row in rows:
-        secants = [(row[(i + 1) % size] - row[i]) / h[i] for i in range(size)]
-        slopes = []
-        for i in range(size):
-            d_prev, d_cur = secants[(i - 1) % size], secants[i]
-            if d_prev * d_cur <= 0:
-                slopes.append(0.0)
-            else:
-                w1 = 2.0 * h[i] + h[(i - 1) % size]
-                w2 = h[i] + 2.0 * h[(i - 1) % size]
-                slopes.append((w1 + w2) / (w1 / d_prev + w2 / d_cur))
-        seg = []
-        for i in range(size):
-            y_i, y_next = row[i], row[(i + 1) % size]
-            d_i, m_i, m_next = secants[i], slopes[i], slopes[(i + 1) % size]
-            a = y_i
-            b = m_i
-            c = (3.0 * d_i - 2.0 * m_i - m_next) / h[i]
-            d = (m_i + m_next - 2.0 * d_i) / (h[i] * h[i])
-            seg.append((a, b, c, d))
-        segs.append(seg)
-    return knots, h, segs
+def _linear_on_vertical(vertical_angles: list[float], row: list[float], gamma: float) -> float:
+    """该平面自身 γ 轴上的线性插值（垂直角网格通常 ≤1°，线性足够平滑）。"""
+    index = _bracket_index(vertical_angles, gamma)
+    a, b = vertical_angles[index], vertical_angles[index + 1]
+    if b == a:
+        return row[index]
+    t = (gamma - a) / (b - a)
+    return row[index] + t * (row[index + 1] - row[index])
 
 
-def _eval_spline(knots: list[float], h: list[float], segs: list[tuple[float, float, float, float]], c: float) -> float:
-    index = bisect.bisect_right(knots, c) - 1
-    if index < 0:
-        index = len(knots) - 1
-    a, b, cc, d = segs[index]
-    # 注意：段系数按绝对距离 t∈[0, h[index]] 定义（见 _pchip），这里不归一化
-    t = c - knots[index]
-    return a + t * (b + t * (cc + t * d))
-
-
-def _find_peak(c_grid: list[float], vertical_angles: list[float], matrix: list[list[float]]) -> tuple[float, float, float]:
-    best = (0.0, 0.0, float("-inf"))
-    for ci, row in enumerate(matrix):
-        for vi, value in enumerate(row):
-            if vertical_angles[vi] > 90:
-                continue
-            if value > best[2]:
-                best = (c_grid[ci], vertical_angles[vi], value)
-    return best
+def _plane_peak_gamma(vertical_angles: list[float], row: list[float]) -> tuple[int, float]:
+    best_index, best_value = -1, float("-inf")
+    for index, (angle, value) in enumerate(zip(vertical_angles, row)):
+        if angle > 90:
+            continue
+        if value > best_value:
+            best_index, best_value = index, value
+    return best_index, best_value
 
 
 def center_photometry(data: dict[str, Any]) -> dict[str, Any]:
-    """对中校正：返回 deepcopy 后的新 dict，candela 矩阵已旋转至峰值对准 γ=0。"""
+    """对中校正：返回 deepcopy 后的新 dict，各 C 平面曲线已平移至峰值对准 γ=0。"""
     vertical_angles = data.get("vertical_angles") or []
-    horizontal_angles = data.get("horizontal_angles") or []
     candela_values = data.get("candela_values") or []
-    if len(vertical_angles) < 2 or not horizontal_angles or len(candela_values) != len(horizontal_angles):
+    horizontal_angles = data.get("horizontal_angles") or []
+    if len(vertical_angles) < 2 or not candela_values or len(candela_values) != len(horizontal_angles):
         raise ValueError("光度数据不完整，无法进行对中校正。")
     if any(len(row) != len(vertical_angles) for row in candela_values):
         raise ValueError("光度矩阵形状不一致，无法进行对中校正。")
 
     scaled = deepcopy(data)
-    matrix_source = [list(row) for row in candela_values]
-    # 数据卫生：γ=0 是唯一的物理方向，各 C 平面应一致。个别文件（尤其 4 平面
-    # 对称扩展文件）γ=0 行互不相同，旋转后会在对中曲线 γ'=γp 附近暴露成凸起，
-    # 此处取均值归一（对已一致的文件无影响）。
-    if vertical_angles[0] == 0 and len(matrix_source) > 1:
-        nadir = sum(row[0] for row in matrix_source) / len(matrix_source)
-        for row in matrix_source:
-            row[0] = round(nadir, 6)
-    c_grid = expand_c_planes(list(horizontal_angles))
-    matrix = _expand_matrix(list(horizontal_angles), matrix_source, c_grid)
-    cp, gp, peak = _find_peak(c_grid, vertical_angles, matrix)
-    if peak <= 0:
-        raise ValueError("无法确定光强峰值方向，无法进行对中校正。")
-
-    # 每个 γ 层一条 C 向 PCHIP：segs[γ行][C段] = (a,b,c,d)
-    c_slices = [[matrix[ci][gi] for ci in range(len(matrix))] for gi in range(len(vertical_angles))]
-    knots, steps, segs = _pchip(c_grid, c_slices)
     max_gamma = vertical_angles[-1]
     min_gamma = vertical_angles[0]
-
-    def sample(c: float, gamma: float) -> float:
-        if gamma > max_gamma:
-            return 0.0
-        if gamma <= min_gamma:
-            gamma = min_gamma
-        gi0, gi1, gt = _bracket(vertical_angles, gamma)
-        v0 = _eval_spline(knots, steps, segs[gi0], c)
-        v1 = _eval_spline(knots, steps, segs[gi1], c)
-        return v0 + gt * (v1 - v0)
-
+    offsets: list[float] = []
     new_matrix: list[list[float]] = []
     out_of_range = 0
     total = 0
-    for c_prime in c_grid:
-        row: list[float] = []
+    global_peak = (0.0, 0.0, float("-inf"))
+
+    for c_angle, row in zip(horizontal_angles, candela_values):
+        peak_index, peak_value = _plane_peak_gamma(vertical_angles, list(row))
+        if peak_value <= 0:
+            raise ValueError("无法确定光强峰值方向，无法进行对中校正。")
+        offset = vertical_angles[peak_index]
+        offsets.append(offset)
+        if peak_value > global_peak[2]:
+            global_peak = (c_angle, offset, peak_value)
+        new_row: list[float] = []
         for gamma_prime in vertical_angles:
-            c, gamma = _inverse_rotation(c_prime, gamma_prime, cp, gp)
+            source_gamma = gamma_prime + offset
             total += 1
-            if gamma > max_gamma:
-                row.append(0.0)
+            if source_gamma > max_gamma:
+                new_row.append(0.0)
                 out_of_range += 1
             else:
-                row.append(round(sample(c, gamma), 3))
-        new_matrix.append(row)
+                if source_gamma < min_gamma:
+                    source_gamma = min_gamma
+                new_row.append(round(_linear_on_vertical(vertical_angles, row, source_gamma), 3))
+        new_matrix.append(new_row)
 
-    scaled["horizontal_angles"] = c_grid
-    scaled["num_horizontal_angles"] = len(c_grid)
     scaled["candela_values"] = new_matrix
     multiplier = scaled.get("candela_multiplier", 1)
     scaled["max_candela"] = round(max(value for row in new_matrix for value in row) * multiplier, 3)
+    # 光通量补偿：平移丢弃了各平面峰值以下的 γ 段（原始数据中该部分信息
+    # 在 IES 的 γ≥0 约定下无法表达），按对中前后积分光通量比整体等比缩放，
+    # 恢复原始光通量。等比缩放不改变曲线形状与光束角。
+    flux_compensation = 1.0
+    flux_before = build_photometry_summary(data)["integrated_downward_flux_lm"]
+    flux_after = build_photometry_summary(scaled)["integrated_downward_flux_lm"]
+    if flux_before > 0 and flux_after > 0 and abs(flux_before - flux_after) > 0.001:
+        flux_compensation = flux_before / flux_after
+        scaled["candela_values"] = [
+            [round(value * flux_compensation, 3) for value in row] for row in new_matrix
+        ]
+        scaled["max_candela"] = round(
+            max(value for row in scaled["candela_values"] for value in row) * multiplier, 3
+        )
+    max_offset = max(offsets)
     scaled["centering"] = {
-        "original_peak_c_angle": round(cp, 3),
-        "original_peak_gamma_angle": round(gp, 3),
-        "original_peak_intensity": round(peak * multiplier, 3),
+        "original_peak_c_angle": round(global_peak[0], 3),
+        "original_peak_gamma_angle": round(global_peak[1], 3),
+        "original_peak_intensity": round(global_peak[2] * multiplier, 3),
         "centered_peak_intensity": scaled["max_candela"],
+        "max_shift_degrees": round(max_offset, 3),
         "out_of_range_ratio": round(out_of_range / total, 3) if total else 0.0,
+        "flux_compensation_factor": round(flux_compensation, 4),
     }
     scaled["centering_note"] = (
-        f"Photometric centering applied: original peak at C={cp:g} deg, gamma={gp:g} deg;"
-        f" rotated to center at gamma=0 deg (monotone cubic resample)."
+        f"Photometric centering applied: per-plane peak alignment (max shift {max_offset:g} deg);"
+        f" original peak at C={global_peak[0]:g} deg, gamma={global_peak[1]:g} deg;"
+        f" flux compensation factor {flux_compensation:.4f}."
     )
     return scaled

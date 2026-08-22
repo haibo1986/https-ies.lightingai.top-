@@ -248,36 +248,51 @@ def test_center_photometry_aligns_peak_to_nadir(tmp_path: Path):
     scaled = IESScaler.scale(parsed, 1000, 1500, "Tilted", 36, "power_only")
     centered = center_photometry(scaled)
     summary = build_photometry_summary(centered)
+    factor = centered["centering"]["flux_compensation_factor"]
     assert summary["peak_direction"]["gamma_angle"] == 0
-    assert summary["peak_direction"]["c_angle"] == 0
-    assert summary["peak_direction"]["intensity"] == 1500
-    assert centered["max_candela"] == 1500
+    assert summary["peak_direction"]["c_angle"] == 90  # 峰值所在平面保持原 C 角，仅曲线平移
+    assert summary["peak_direction"]["intensity"] == pytest.approx(1500 * factor, rel=1e-3)
+    assert centered["max_candela"] == pytest.approx(1500 * factor, rel=1e-3)
+    assert factor > 1  # 平移丢弃峰值以下 γ 段后按光通量补偿放大
     assert centered["centering"]["original_peak_c_angle"] == 90
     assert centered["centering"]["original_peak_gamma_angle"] == 30
     assert len(centered["candela_values"]) == centered["num_horizontal_angles"] == 12
 
 
-def test_center_photometry_expands_symmetric_c_planes():
-    row_c0 = [100.0, 50.0, 10.0]
-    row_c90 = [80.0, 40.0, 8.0]
+def test_center_photometry_shifts_each_plane_and_preserves_shape():
+    # 两平面峰值分别在 γ45：平移后各自峰值落到 γ0、曲线形状保持（等比补偿后相邻值比例不变），
+    # 超出 90° 填 0
     parsed = {
         "vertical_angles": [0.0, 45.0, 90.0],
         "horizontal_angles": [0.0, 90.0],
-        "candela_values": [row_c0, row_c90],
+        "candela_values": [[50.0, 100.0, 10.0], [40.0, 80.0, 8.0]],
         "candela_multiplier": 1,
     }
     centered = center_photometry(parsed)
-    assert centered["horizontal_angles"] == [0.0, 90.0, 180.0, 270.0, 360.0]
-    assert centered["num_horizontal_angles"] == 5
-    # 峰值在 (C0, γ0) → 旋转为单位变换；γ=0 行先做均值归一（(100+80)/2=90，
-    # γ=0 是唯一方向，各平面应一致），其余各行按 LM-63 镜像规则映射回源平面
-    assert centered["candela_values"] == [
-        [90.0, 50.0, 10.0],
-        [90.0, 40.0, 8.0],
-        [90.0, 50.0, 10.0],
-        [90.0, 40.0, 8.0],
-        [90.0, 50.0, 10.0],
-    ]
+    factor = centered["centering"]["flux_compensation_factor"]
+    assert centered["horizontal_angles"] == [0.0, 90.0]
+    assert centered["candela_values"][0][0] == pytest.approx(100.0 * factor, rel=1e-3)
+    assert centered["candela_values"][0][1] == pytest.approx(10.0 * factor, rel=1e-3)
+    assert centered["candela_values"][0][2] == 0.0
+    assert centered["candela_values"][1][0] == pytest.approx(80.0 * factor, rel=1e-3)
+    assert centered["candela_values"][1][1] == pytest.approx(8.0 * factor, rel=1e-3)
+    assert centered["centering"]["max_shift_degrees"] == 45
+    assert centered["max_candela"] == pytest.approx(100.0 * factor, rel=1e-3)
+
+
+def test_center_photometry_preserves_plane_beam_shape(tmp_path: Path):
+    # 平移对中的核心承诺：各平面峰值落到 γ0、曲线形状（半宽 = 交叉角 − 峰值角）严格不变。
+    # 注：轴光束角数值（绕 γ0 测量）会随偏移量修正而变小——那正是对中的意义。
+    parsed = _parse_tilted(tmp_path, c_peak=90.0, gamma_peak=25.0)
+    before = build_photometry_summary(parsed)["planes"]
+    after = build_photometry_summary(center_photometry(parsed))["planes"]
+    for a, b in zip(before, after):
+        assert b["peak_angle"] == 0
+        h_a = a["crossing_angle"] - a["peak_angle"] if a["crossing_angle"] is not None else None
+        h_b = b["crossing_angle"] - b["peak_angle"] if b["crossing_angle"] is not None else None
+        assert (h_a is None) == (h_b is None)
+        if h_a is not None:
+            assert h_b == pytest.approx(h_a, abs=0.02)
 
 
 def test_center_photometry_preserves_flux_within_tolerance(tmp_path: Path):
@@ -285,7 +300,7 @@ def test_center_photometry_preserves_flux_within_tolerance(tmp_path: Path):
     before = build_photometry_summary(parsed)["integrated_downward_flux_lm"]
     centered = center_photometry(parsed)
     after = build_photometry_summary(centered)["integrated_downward_flux_lm"]
-    assert after == pytest.approx(before, rel=0.03)
+    assert after == pytest.approx(before, rel=0.01)
 
 
 def test_center_photometry_roundtrip_writes_note_and_reparses(tmp_path: Path):
@@ -314,7 +329,9 @@ def test_center_photometry_uses_candela_multiplier(tmp_path: Path):
     parsed["candela_multiplier"] = 2
     parsed["candela_values"] = [[value / 2 for value in row] for row in parsed["candela_values"]]
     centered = center_photometry(parsed)
-    assert centered["max_candela"] == 1000  # 原始峰值 500 raw × 2 倍率
+    factor = centered["centering"]["flux_compensation_factor"]
+    # 原始峰值 500 raw × 2 倍率 × 光通量补偿
+    assert centered["max_candela"] == pytest.approx(1000 * factor, rel=1e-3)
 
 
 def test_center_photometry_rejects_empty_peak(tmp_path: Path):

@@ -55,7 +55,7 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
         <label className="wide"><span>配光对中校正</span><div className="check-field">
           <input type="checkbox" name="center_photometry" checked={!!form.center_photometry} onChange={event => setForm(current => ({ ...current, center_photometry: event.target.checked }))}/>
           <div className="check-field-copy">
-            <p>勾选后生成时将光强分布整体旋转，使最大光强对准正下方（γ=0°）。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光请勿勾选。</p>
+            <p>勾选后各 C 平面配光曲线按自身峰值平移至正下方（γ=0°），曲线形状与光束角保持不变。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光请勿勾选。</p>
             {peak && (peakGamma <= 1
               ? <p className="peak-hint ok">当前文件最大光强方向 C{Number(peak.c_angle).toFixed(1)}° / γ{peakGamma.toFixed(1)}°，已基本居中，无需校正。</p>
               : <p className="peak-hint warn">当前文件最大光强方向 C{Number(peak.c_angle).toFixed(1)}° / γ{peakGamma.toFixed(1)}°，偏离正下方约 {peakGamma.toFixed(1)}°。若灯具并非偏光设计，建议勾选对中校正。</p>)}
