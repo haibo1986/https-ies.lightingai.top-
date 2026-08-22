@@ -24,3 +24,4 @@ deployment-packages/
 # Claude 本地配置
 .claude/
 
+backend/led_library.json

@@ -258,6 +258,22 @@ def test_expired_runtime_files_are_cleaned_up():
     assert not path.exists()
 
 
+def test_led_library_seed_save_and_dedupe(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(main, "LED_LIBRARY_PATH", tmp_path / "led_library.json")
+    seed = client.get("/api/led-library").json()
+    assert len(seed["models"]) >= 3  # 内置种子型号
+    response = client.post("/api/led-library", json={"name": "测试2835", "note": "测试", "points": [[100, 36], [60, 23]]})
+    assert response.status_code == 200
+    models = response.json()["models"]
+    assert models[-1]["name"] == "测试2835"
+    assert models[-1]["points"][0] == [60.0, 23.0]  # 按电流排序
+    client.post("/api/led-library", json={"name": "测试2835", "points": [[60, 20], [100, 35]]})
+    names = [m["name"] for m in client.get("/api/led-library").json()["models"]]
+    assert names.count("测试2835") == 1  # 同名覆盖
+    assert client.post("/api/led-library", json={"name": "坏数据", "points": [[60, 23]]}).status_code == 400
+    assert client.post("/api/led-library", json={"name": "坏数据", "points": [[-1, 23], [100, 36]]}).status_code == 400
+
+
 def test_generate_with_photometric_centering(tmp_path: Path):
     tilted = tmp_path / "tilted.ies"
     tilted.write_text(tilted_ies_text(), encoding="utf-8")

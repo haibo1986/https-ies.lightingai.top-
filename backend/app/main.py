@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import logging
+import math
 import os
 import time
 import uuid
@@ -30,6 +32,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 OUTPUT_DIR = BASE_DIR / "outputs"
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+# LED 型号库：运行时文件放在 backend/led_library.json（部署包不含 backend 根目录，
+# 服务器端可持续积累）；缺失时回退到随代码发布的种子数据。
+LED_LIBRARY_PATH = BASE_DIR / "led_library.json"
+LED_LIBRARY_SEED = Path(__file__).resolve().parent / "led_library_seed.json"
 MAX_SOURCE_REPORT_SIZE = 20 * 1024 * 1024
 FILE_RETENTION_SECONDS = 24 * 60 * 60
 UPLOADS: dict[str, dict[str, Any]] = {}
@@ -322,6 +328,44 @@ def view_output(file_name: str) -> FileResponse:
 def download(file_name: str) -> FileResponse:
     path=_safe_output(file_name)
     return FileResponse(path,filename=path.name,media_type="application/octet-stream")
+
+
+class LedModelIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    note: str | None = Field(default=None, max_length=200)
+    points: list[list[float]]
+
+
+def _load_led_library() -> dict[str, Any]:
+    try:
+        return json.loads(LED_LIBRARY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return json.loads(LED_LIBRARY_SEED.read_text(encoding="utf-8"))
+
+
+@app.get("/api/led-library")
+def get_led_library() -> dict[str, Any]:
+    return _load_led_library()
+
+
+@app.post("/api/led-library")
+def save_led_model(payload: LedModelIn) -> dict[str, Any]:
+    points: list[list[float]] = []
+    for pair in payload.points:
+        if len(pair) != 2 or not all(math.isfinite(value) for value in pair) or pair[0] <= 0 or pair[1] <= 0:
+            raise HTTPException(status_code=400, detail="数据点必须是「电流,相对光通量」且均为正数。")
+        points.append([round(pair[0], 2), round(pair[1], 1)])
+    points.sort(key=lambda pair: pair[0])
+    points = [pair for index, pair in enumerate(points) if index == 0 or pair[0] != points[index - 1][0]]
+    if len(points) < 2:
+        raise HTTPException(status_code=400, detail="至少需要两个有效数据点。")
+    library = _load_led_library()
+    models = [model for model in library.get("models", []) if model.get("name") != payload.name]
+    models.append({"name": payload.name, "note": payload.note or "", "points": points})
+    library["models"] = models
+    LED_LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LED_LIBRARY_PATH.write_text(json.dumps(library, ensure_ascii=False, indent=2), encoding="utf-8")
+    return library
 
 
 @app.exception_handler(HTTPException)

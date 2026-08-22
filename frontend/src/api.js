@@ -27,3 +27,15 @@ export async function generateIes(payload) {
 }
 
 export const downloadUrl = (path) => path ? `${API_BASE}${path}` : ''
+
+export async function fetchLedLibrary() {
+  return parseResponse(await fetch(`${API_BASE}/api/led-library`))
+}
+
+export async function saveLedModel(model) {
+  return parseResponse(await fetch(`${API_BASE}/api/led-library`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(model),
+  }))
+}
