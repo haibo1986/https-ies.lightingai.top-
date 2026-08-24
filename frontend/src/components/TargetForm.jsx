@@ -45,13 +45,13 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
       <div className="section-heading"><div><p className="eyebrow">TARGET</p><h2>填写目标参数</h2></div></div>
       <div className="form-grid">
         <label><span>原始实测总光通量 <b>*</b></span><div className="input-unit"><input name="source_luminous_flux_lm" type="number" min="0.000001" step="any" required value={form.source_luminous_flux_lm} onChange={update}/><i>lm</i></div></label>
-        <label><span>目标型号 <b>*</b></span><input name="target_model" required maxLength="200" value={form.target_model} onChange={update} placeholder="例如 WWL-3030-36W-20D"/></label>
-        <label><span>目标功率 <b>*</b></span><div className="input-unit"><input name="target_power_w" type="number" min="0.000001" step="any" required value={form.target_power_w} onChange={update}/><i>W</i></div></label>
-        <label><span>目标光通量 <b>*</b></span><div className="input-unit"><input name="target_luminous_flux_lm" type="number" min="0.000001" step="any" required value={form.target_luminous_flux_lm} onChange={update}/><i>lm</i></div></label>
-        <label className="required-dimension"><span>发光面长度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_length_mm" type="number" min="0.01" step="any" required value={form.target_luminous_length_mm} onChange={update}/><i>mm</i></div></label>
-        <label className="required-dimension"><span>发光面宽度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_width_mm" type="number" min="0.01" step="any" required value={form.target_luminous_width_mm} onChange={update}/><i>mm</i></div></label>
+        <label><span>目标型号 <b>*</b></span><input name="target_model" required maxLength="200" value={form.target_model} onChange={update} placeholder="例如 WWL-3030-36W-20D"/><small className="field-hint">建议包含功率与角度：型号-功率-角度，生成文件名取自这里</small></label>
+        <label><span>目标功率 <b>*</b></span><div className="input-unit"><input name="target_power_w" type="number" min="0.000001" step="any" required value={form.target_power_w} onChange={update}/><i>W</i></div><small className="field-hint">填灯具整灯输入功率（不是单颗 LED 功率）</small></label>
+        <label><span>目标光通量 <b>*</b></span><div className="input-unit"><input name="target_luminous_flux_lm" type="number" min="0.000001" step="any" required value={form.target_luminous_flux_lm} onChange={update}/><i>lm</i></div><small className="field-hint">不知道？点下方「不知道目标光通量？」估算器，按 LED 电流/颗数自动算出</small></label>
+        <label className="required-dimension"><span>发光面长度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_length_mm" type="number" min="0.01" step="any" required value={form.target_luminous_length_mm} onChange={update}/><i>mm</i></div><small className="field-hint">填灯具出光口的长度（发光区域长度，不是灯体外形长度）</small></label>
+        <label className="required-dimension"><span>发光面宽度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_width_mm" type="number" min="0.01" step="any" required value={form.target_luminous_width_mm} onChange={update}/><i>mm</i></div><small className="field-hint">填灯具出光口的宽度（发光区域宽度）</small></label>
         <FluxEstimator sourceFlux={form.source_luminous_flux_lm} targetPower={form.target_power_w} parsedInfo={upload.parsed_info} onApply={applyEstimate}/>
-        <label className="wide"><span>变更类型 <b>*</b></span><select name="change_type" value={form.change_type} onChange={update}>{Object.entries(CHANGES).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></label>
+        <label className="wide"><span>变更类型 <b>*</b></span><select name="change_type" value={form.change_type} onChange={update}>{Object.entries(CHANGES).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select><small className="field-hint">中风险选项可能影响近场均匀性，高风险选项会拦截生成（需重新实测）</small></label>
         <label className="wide"><span>配光对中校正</span><div className="check-field">
           <input type="checkbox" name="center_photometry" checked={!!form.center_photometry} onChange={event => setForm(current => ({ ...current, center_photometry: event.target.checked }))}/>
           <div className="check-field-copy">
@@ -65,7 +65,7 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
       {form.target_luminous_length_mm && form.target_luminous_width_mm && <div className="dimension-preview"><b>发光面积与亮度计算</b><span>{form.target_luminous_length_mm} × {form.target_luminous_width_mm} mm · 面积 {(Number(form.target_luminous_length_mm)*Number(form.target_luminous_width_mm)/1000000).toFixed(4)} m²</span></div>}
 
       <div className="source-report-box">
-        <div><strong>原始光度测试 PDF（可选溯源附件）</strong><p>原文件不会被修改。标准 13 页报告始终由目标 IES 统一生成；识别成功的原版式文件还可额外生成一份覆盖估算数据的原版式报告。</p></div>
+        <div><strong>原始光度测试 PDF（可选溯源附件）</strong><p>原文件不会被修改，不传也不影响生成。标准 13 页报告始终由目标 IES 统一生成；识别成功的原版式文件还可额外生成一份覆盖估算数据的原版式报告。</p></div>
         <label className="button secondary source-report-button">
           {reportUploading ? '正在上传…' : form.source_report_id ? '更换 PDF' : '上传原始 PDF'}
           <input type="file" accept="application/pdf,.pdf" onChange={addSourceReport} disabled={reportUploading}/>
