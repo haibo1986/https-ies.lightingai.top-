@@ -258,6 +258,22 @@ def test_expired_runtime_files_are_cleaned_up():
     assert not path.exists()
 
 
+def test_customer_library_save_select_and_validate(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(main, "CUSTOMER_LIBRARY_PATH", tmp_path / "customer_library.json")
+    assert client.get("/api/customer-library").json() == {"customers": []}  # 空种子
+    response = client.post("/api/customer-library", json={
+        "name": "中山市某照明公司",
+        "fields": {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000", "unknown_key": "x", "empty": ""},
+    })
+    assert response.status_code == 200
+    saved = response.json()["customers"][0]
+    assert saved["name"] == "中山市某照明公司"
+    assert saved["fields"] == {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000"}  # 白名单过滤
+    client.post("/api/customer-library", json={"name": "中山市某照明公司", "fields": {"cct_k": "3000"}})
+    names = [c["name"] for c in client.get("/api/customer-library").json()["customers"]]
+    assert names.count("中山市某照明公司") == 1  # 同名覆盖
+
+
 def test_led_library_seed_save_and_dedupe(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(main, "LED_LIBRARY_PATH", tmp_path / "led_library.json")
     seed = client.get("/api/led-library").json()

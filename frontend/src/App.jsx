@@ -12,6 +12,22 @@ const EMPTY = {
   source_report_id: '', source_report_name: '', source_report_preview_url: '', source_report_analysis: null, source_field_mapping: {},
   report_supplement: {}, center_photometry: false,
 }
+const LAST_FORM_KEY = 'ies-last-form'
+const LAST_FORM_FIELDS = ['target_model', 'target_power_w', 'target_luminous_flux_lm', 'target_luminous_length_mm', 'target_luminous_width_mm', 'change_type', 'report_supplement']
+
+function loadLastForm() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_FORM_KEY) || '{}')
+    return Object.fromEntries(LAST_FORM_FIELDS.filter(key => key in saved).map(key => [key, saved[key]]))
+  } catch { return {} }
+}
+
+function saveLastForm(form) {
+  try {
+    const snapshot = Object.fromEntries(LAST_FORM_FIELDS.map(key => [key, form[key]]))
+    localStorage.setItem(LAST_FORM_KEY, JSON.stringify(snapshot))
+  } catch { /* 存储不可用时静默跳过 */ }
+}
 
 export default function App() {
   const [file, setFile] = useState(null)
@@ -24,7 +40,8 @@ export default function App() {
 
   function selectFile(event) {
     setFile(event.target.files?.[0] || null)
-    setUpload(null); setResult(null); setError(''); setForm(EMPTY)
+    setUpload(null); setResult(null); setError('')
+    setForm({ ...EMPTY, ...loadLastForm() })
   }
 
   async function handleUpload() {
@@ -64,6 +81,7 @@ export default function App() {
     try {
       const generated = await generateIes(payload)
       setResult(generated)
+      saveLastForm(form)
       requestAnimationFrame(() => document.getElementById('generation-result')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     }
     catch (reason) { setError(reason.message || '生成请求失败，请确认后端服务正在运行。') }

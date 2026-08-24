@@ -36,6 +36,14 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 # 服务器端可持续积累）；缺失时回退到随代码发布的种子数据。
 LED_LIBRARY_PATH = BASE_DIR / "led_library.json"
 LED_LIBRARY_SEED = Path(__file__).resolve().parent / "led_library_seed.json"
+# 客户模板库：与 LED 型号库同模式，种子为空列表。
+CUSTOMER_LIBRARY_PATH = BASE_DIR / "customer_library.json"
+CUSTOMER_LIBRARY_SEED = Path(__file__).resolve().parent / "customer_library_seed.json"
+CUSTOMER_FIELD_NAMES = {
+    "company_name", "company_website", "company_phone", "manufacturer", "product_description",
+    "voltage_v", "current_a", "power_factor", "cct_k", "cri_ra",
+    "fixture_length_mm", "fixture_width_mm", "fixture_height_mm", "calculation_height_m", "plane_extent_m",
+}
 MAX_SOURCE_REPORT_SIZE = 20 * 1024 * 1024
 FILE_RETENTION_SECONDS = 24 * 60 * 60
 UPLOADS: dict[str, dict[str, Any]] = {}
@@ -365,6 +373,39 @@ def save_led_model(payload: LedModelIn) -> dict[str, Any]:
     library["models"] = models
     LED_LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
     LED_LIBRARY_PATH.write_text(json.dumps(library, ensure_ascii=False, indent=2), encoding="utf-8")
+    return library
+
+
+class CustomerIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    fields: dict[str, Any] = Field(default_factory=dict)
+
+
+def _load_customer_library() -> dict[str, Any]:
+    try:
+        return json.loads(CUSTOMER_LIBRARY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return json.loads(CUSTOMER_LIBRARY_SEED.read_text(encoding="utf-8"))
+
+
+@app.get("/api/customer-library")
+def get_customer_library() -> dict[str, Any]:
+    return _load_customer_library()
+
+
+@app.post("/api/customer-library")
+def save_customer(payload: CustomerIn) -> dict[str, Any]:
+    fields = {
+        key: str(value)[:200]
+        for key, value in payload.fields.items()
+        if key in CUSTOMER_FIELD_NAMES and value not in (None, "")
+    }
+    library = _load_customer_library()
+    customers = [item for item in library.get("customers", []) if item.get("name") != payload.name]
+    customers.append({"name": payload.name, "fields": fields})
+    library["customers"] = customers
+    CUSTOMER_LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CUSTOMER_LIBRARY_PATH.write_text(json.dumps(library, ensure_ascii=False, indent=2), encoding="utf-8")
     return library
 
 

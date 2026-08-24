@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import './ReportSupplementForm.css'
+import { fetchCustomerLibrary, saveCustomer as saveCustomerApi } from '../api.js'
 
 const FIELD_GROUPS = [
   { title: '报告身份', tag: 'DOCUMENT', fields: [
@@ -21,6 +23,29 @@ const FIELD_GROUPS = [
 ]
 
 export default function ReportSupplementForm({ value, onChange }) {
+  const [customers, setCustomers] = useState([])
+  const [customerName, setCustomerName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [customerMessage, setCustomerMessage] = useState('')
+  useEffect(() => { fetchCustomerLibrary().then(data => setCustomers(data.customers || [])).catch(() => setCustomers([])) }, [])
+  const applyCustomer = event => {
+    const name = event.target.value
+    setCustomerName(name); setCustomerMessage('')
+    const template = customers.find(item => item.name === name)
+    if (template) onChange({ ...value, ...template.fields })
+  }
+  const saveCustomer = async () => {
+    const name = customerName.trim()
+    if (!name) return
+    const fields = Object.fromEntries(FIELD_GROUPS.flatMap(group => group.fields.map(([key]) => [key, value[key]])))
+    setSaving(true); setCustomerMessage('')
+    try {
+      const data = await saveCustomerApi({ name, fields })
+      setCustomers(data.customers || [])
+      setCustomerMessage(`已保存「${name}」，以后可在客户列表中选择。`)
+    } catch (reason) { setCustomerMessage(`保存失败：${reason.message}`) }
+    finally { setSaving(false) }
+  }
   const update = event => onChange({ ...value, [event.target.name]: event.target.value })
   const addLogo = event => {
     const file = event.target.files?.[0]
@@ -31,6 +56,12 @@ export default function ReportSupplementForm({ value, onChange }) {
   }
   return <div className="supplement-shell">
     <div className="supplement-head"><div><span>REPORT METADATA</span><strong>标准报告补充信息</strong><p>这些字段由用户提供，并在报告中与 IES 计算数据分开标识；全部可选。</p></div><i>USER INPUT</i></div>
+    <div className="customer-row">
+      <select value={customerName} onChange={applyCustomer} aria-label="选择客户模板"><option value="">— 选择客户模板一键填入 —</option>{customers.map(customer => <option key={customer.name} value={customer.name}>{customer.name}</option>)}</select>
+      <input value={customerName} onChange={event => setCustomerName(event.target.value)} placeholder="客户名称，如 中山市某照明公司" aria-label="客户名称"/>
+      <button type="button" className="button secondary" onClick={saveCustomer} disabled={saving || !customerName.trim()}>{saving ? '保存中…' : '存为客户模板'}</button>
+      {customerMessage && <span className={`customer-message${customerMessage.startsWith('保存失败') ? ' error' : ''}`}>{customerMessage}</span>}
+    </div>
     {FIELD_GROUPS.map(group => <section className="supplement-group" key={group.tag}>
       <div className="supplement-label"><span>{group.tag}</span><strong>{group.title}</strong></div>
       <div className="supplement-grid">{group.fields.map(([name,label,type,placeholder]) => <label key={name}><span>{label}</span><div className="supplement-input"><input name={name} type={type} step={type === 'number' ? 'any' : undefined} min={type === 'number' ? '0' : undefined} value={value[name] || ''} onChange={update} placeholder={placeholder}/>{type === 'number' && placeholder && !['0-1','Ra'].includes(placeholder) && <i>{placeholder}</i>}</div></label>)}</div>

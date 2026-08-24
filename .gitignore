@@ -25,3 +25,4 @@ deployment-packages/
 .claude/
 
 backend/led_library.json
+backend/customer_library.json

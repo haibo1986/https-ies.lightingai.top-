@@ -32,9 +32,11 @@ function rangeFor(value,confidence){const spread=confidence==='high'?.05:confide
 const fmt=value=>Number(value).toLocaleString('zh-CN',{maximumFractionDigits:0})
 
 export default function FluxEstimator({sourceFlux,targetPower,parsedInfo,onApply}){
-  const[open,setOpen]=useState(false),[scenario,setScenario]=useState(''),[values,setValues]=useState(initial)
+  const ESTIMATOR_KEY='ies-estimator-values'
+  const[open,setOpen]=useState(false),[scenario,setScenario]=useState(''),[values,setValues]=useState(()=>{try{return{...initial,...JSON.parse(localStorage.getItem(ESTIMATOR_KEY)||'{}')}}catch{return initial}})
   const[library,setLibrary]=useState([]),[libraryLoaded,setLibraryLoaded]=useState(false),[modelName,setModelName]=useState(''),[saving,setSaving]=useState(false),[libraryMessage,setLibraryMessage]=useState('')
   const update=e=>setValues(current=>({...current,[e.target.name]:e.target.value}))
+  useEffect(()=>{try{localStorage.setItem(ESTIMATOR_KEY,JSON.stringify(values))}catch{/* 忽略存储失败 */}},[values])
   useEffect(()=>{if(open&&!libraryLoaded){setLibraryLoaded(true);fetchLedLibrary().then(data=>setLibrary(data.models||[])).catch(()=>setLibrary([]))}},[open])
   const applyModel=event=>{const name=event.target.value;setModelName(name);setLibraryMessage('');const model=library.find(item=>item.name===name);if(model)setValues(current=>({...current,curve_text:model.points.map(([c,f])=>`${c},${f}`).join('\n')}))}
   const saveModel=async()=>{const name=modelName.trim();if(!name||points.length<2)return;setSaving(true);setLibraryMessage('');try{const data=await saveLedModel({name,note:'自定义数据',points:points.map(point=>[point.current,point.flux])});setLibrary(data.models||[]);setLibraryMessage(`已保存「${name}」，以后可在型号列表中选择。`)}catch(reason){setLibraryMessage(`保存失败：${reason.message}`)}finally{setSaving(false)}}

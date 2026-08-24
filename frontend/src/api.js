@@ -39,3 +39,15 @@ export async function saveLedModel(model) {
     body: JSON.stringify(model),
   }))
 }
+
+export async function fetchCustomerLibrary() {
+  return parseResponse(await fetch(`${API_BASE}/api/customer-library`))
+}
+
+export async function saveCustomer(customer) {
+  return parseResponse(await fetch(`${API_BASE}/api/customer-library`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(customer),
+  }))
+}
