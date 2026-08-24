@@ -49,7 +49,7 @@ export default function IesInfoPanel({upload}){
         <article><div><span>配光类型</span><small>根据不同 C 平面的光强差异判断</small></div><strong className="distribution-badge">{distributionLabels[photometry.distribution_type]||'—'}</strong></article>
       </div>
       {info.is_absolute_photometry&&<div className="notice warning">这是绝对光度文件，IES 中没有可直接使用的总光通量，请填写实测总光通量。</div>}
-      <PhotometricChart photometry={photometry}/>
+      <PhotometricChart photometry={photometry} totalLumens={info.suggested_source_luminous_flux_lm ?? (info.number_of_lamps>0&&info.lumens_per_lamp>0?info.number_of_lamps*info.lumens_per_lamp:null) ?? photometry.integrated_downward_flux_lm}/>
       <details className="raw-details">
         <summary><span className="raw-title"><em>03 / RAW PARAMETERS</em><b>IES 原始技术参数</b><small>第三层 · 版本、TILT、采样范围、倍率与灯具尺寸</small></span><span className="expand-prompt"><b>点击展开查看 {rawFields.length} 项参数</b><i aria-hidden="true">⌄</i></span></summary>
         <dl className="raw-grid">{rawFields.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value??'—'}</dd></div>)}</dl>

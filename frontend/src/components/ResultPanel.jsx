@@ -33,7 +33,7 @@ export default function ResultPanel({ result }) {
         <div><span>最大光强</span><strong>{number(preview.max_candela)} cd</strong></div>
       </div>
       <div className="validation-list"><h3>文件检查</h3>{preview.validation?.map(item => <span key={item.label} className={item.ok ? 'ok' : 'bad'}>{item.ok ? '✓' : '×'} {item.label}</span>)}</div>
-      {preview.photometry && <div className="result-chart"><PhotometricChart photometry={preview.photometry}/></div>}
+      {preview.photometry && <div className="result-chart"><PhotometricChart photometry={preview.photometry} totalLumens={preview.target_luminous_flux_lm}/></div>}
       <details className="raw-ies"><summary>查看 IES 原始文本（前 120 行）</summary><pre>{preview.text}</pre></details>
     </div>}
 
