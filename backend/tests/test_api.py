@@ -107,6 +107,16 @@ def test_source_pdf_is_preserved_and_linked_to_estimated_report(sample_path: Pat
     record["path"].unlink(missing_ok=True)
 
 
+def test_upload_rejects_non_type_c(sample_path: Path, tmp_path: Path):
+    content = sample_path.read_text(encoding="utf-8").replace("1 1000 1 3 2 1 2", "1 1000 1 3 2 2 2")
+    path = tmp_path / "type-b.ies"
+    path.write_text(content, encoding="utf-8")
+    with path.open("rb") as file:
+        response = client.post("/api/upload", files={"file": ("type-b.ies", file, "application/octet-stream")})
+    assert response.status_code == 400
+    assert "Type C" in response.json()["error"]
+
+
 def test_upload_rejections(tmp_path: Path):
     wrong = client.post("/api/upload", files={"file": ("bad.txt", b"x", "text/plain")})
     assert wrong.status_code == 400
@@ -263,12 +273,12 @@ def test_customer_library_save_select_and_validate(tmp_path: Path, monkeypatch):
     assert client.get("/api/customer-library").json() == {"customers": []}  # 空种子
     response = client.post("/api/customer-library", json={
         "name": "中山市某照明公司",
-        "fields": {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000", "unknown_key": "x", "empty": ""},
+        "fields": {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000", "report_date": "2026-08-26", "unknown_key": "x", "empty": ""},
     })
     assert response.status_code == 200
     saved = response.json()["customers"][0]
     assert saved["name"] == "中山市某照明公司"
-    assert saved["fields"] == {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000"}  # 白名单过滤
+    assert saved["fields"] == {"company_name": "中山市某照明公司", "voltage_v": "24", "cct_k": "4000", "report_date": "2026-08-26"}  # 白名单过滤
     client.post("/api/customer-library", json={"name": "中山市某照明公司", "fields": {"cct_k": "3000"}})
     names = [c["name"] for c in client.get("/api/customer-library").json()["customers"]]
     assert names.count("中山市某照明公司") == 1  # 同名覆盖

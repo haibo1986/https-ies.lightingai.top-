@@ -282,7 +282,6 @@ def test_center_photometry_shifts_each_plane_and_preserves_shape():
 
 def test_center_photometry_preserves_plane_beam_shape(tmp_path: Path):
     # 平移对中的核心承诺：各平面峰值落到 γ0、曲线形状（半宽 = 交叉角 − 峰值角）严格不变。
-    # 注：轴光束角数值（绕 γ0 测量）会随偏移量修正而变小——那正是对中的意义。
     parsed = _parse_tilted(tmp_path, c_peak=90.0, gamma_peak=25.0)
     before = build_photometry_summary(parsed)["planes"]
     after = build_photometry_summary(center_photometry(parsed))["planes"]
@@ -293,6 +292,18 @@ def test_center_photometry_preserves_plane_beam_shape(tmp_path: Path):
         assert (h_a is None) == (h_b is None)
         if h_a is not None:
             assert h_b == pytest.approx(h_a, abs=0.02)
+
+
+def test_beam_angle_is_true_fwhm_for_tilted_distribution(tmp_path: Path):
+    # 倾斜高斯（峰值 C90/γ25，σ=20°）：过峰 C90 平面的真实 FWHM =
+    # 下降边(25+24.1) − 上升边(25−24.1) = 48.2°。旧公式只测下降边会把
+    # 峰值偏移量算进宽度（虚高），此处断言修正后的两侧测量值。
+    parsed = _parse_tilted(tmp_path, c_peak=90.0, gamma_peak=25.0)
+    plane_c90 = next(p for p in build_photometry_summary(parsed)["planes"] if p["c_angle"] == 90)
+    fwhm = plane_c90["crossing_angle"] - plane_c90["crossing_angle_asc"]
+    assert fwhm == pytest.approx(48.2, abs=1.0)
+    # 旧公式（只测下降边）会得到 ≈49.1 且不含上升边信息；交叉角上升边必须小于峰值角
+    assert plane_c90["crossing_angle_asc"] < plane_c90["peak_angle"]
 
 
 def test_center_photometry_preserves_flux_within_tolerance(tmp_path: Path):

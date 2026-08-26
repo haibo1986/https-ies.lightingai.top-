@@ -18,13 +18,26 @@ const LAST_FORM_FIELDS = ['target_model', 'target_power_w', 'target_luminous_flu
 function loadLastForm() {
   try {
     const saved = JSON.parse(localStorage.getItem(LAST_FORM_KEY) || '{}')
-    return Object.fromEntries(LAST_FORM_FIELDS.filter(key => key in saved).map(key => [key, saved[key]]))
+    const result = {}
+    for (const key of LAST_FORM_FIELDS) {
+      if (!(key in saved)) continue
+      // 存档可能被旧版本/手动修改污染：非法枚举与非法类型一律丢弃，防止白屏
+      if (key === 'change_type' && !(saved[key] in CHANGES)) continue
+      if (key === 'report_supplement' && (typeof saved[key] !== 'object' || saved[key] === null || Array.isArray(saved[key]))) continue
+      result[key] = saved[key]
+    }
+    return result
   } catch { return {} }
 }
 
 function saveLastForm(form) {
   try {
     const snapshot = Object.fromEntries(LAST_FORM_FIELDS.map(key => [key, form[key]]))
+    // Logo 是文件类数据（可达 2MB+），写入浏览器存储易撑爆配额导致整体保存失败
+    const supplement = { ...(snapshot.report_supplement || {}) }
+    delete supplement.company_logo_data_url
+    delete supplement.company_logo_name
+    snapshot.report_supplement = supplement
     localStorage.setItem(LAST_FORM_KEY, JSON.stringify(snapshot))
   } catch { /* 存储不可用时静默跳过 */ }
 }
@@ -50,7 +63,7 @@ export default function App() {
     try {
       const data = await uploadIes(file)
       setUpload(data)
-      setForm({ ...EMPTY, source_luminous_flux_lm: data.parsed_info.suggested_source_luminous_flux_lm ?? '' })
+      setForm({ ...EMPTY, ...loadLastForm(), source_luminous_flux_lm: data.parsed_info.suggested_source_luminous_flux_lm ?? '' })
     } catch (reason) { setError(reason.message) }
     finally { setUploading(false) }
   }

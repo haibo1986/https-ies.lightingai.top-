@@ -26,6 +26,21 @@ def _intensity_crossing(angles: list[float], values: list[float], fraction: floa
     return None
 
 
+def _intensity_crossing_ascending(angles: list[float], values: list[float], fraction: float) -> float | None:
+    """从峰值向 γ 减小方向搜索交点（上升边）；峰值在 γ=0 附近时返回 0。"""
+    if not values:
+        return None
+    peak_index = max(range(len(values)), key=values.__getitem__)
+    threshold = values[peak_index] * fraction
+    if values[0] >= threshold:
+        return angles[0]
+    for index in range(peak_index, 0, -1):
+        previous, current = values[index - 1], values[index]
+        if previous <= threshold <= current:
+            return _interpolate_crossing(angles[index - 1], previous, angles[index], current, threshold)
+    return None
+
+
 def _plane_summary(angles: list[float], values: list[float]) -> dict[str, float | None]:
     peak_index = max(range(len(values)), key=values.__getitem__)
     peak = values[peak_index]
@@ -34,8 +49,10 @@ def _plane_summary(angles: list[float], values: list[float]) -> dict[str, float 
         "peak_intensity": peak,
         "threshold": peak * 0.5,
         "crossing_angle": _intensity_crossing(angles, values, 0.5),
+        "crossing_angle_asc": _intensity_crossing_ascending(angles, values, 0.5),
         "threshold_10": peak * 0.1,
         "crossing_angle_10": _intensity_crossing(angles, values, 0.1),
+        "crossing_angle_10_asc": _intensity_crossing_ascending(angles, values, 0.1),
     }
 
 
@@ -65,6 +82,13 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
             return None
         return by_angle.get(round(mapped, 6))
 
+    def _half_width(plane: dict[str, Any], crossing_key: str, asc_key: str) -> float | None:
+        """峰值下降边交点 − 上升边交点（即该平面内真实半宽）；上升边无交点时以峰值角为界。"""
+        if plane[crossing_key] is None:
+            return None
+        ascending = plane[asc_key] if plane[asc_key] is not None else plane["peak_angle"]
+        return plane[crossing_key] - ascending
+
     beam_angles = []
     handled_axes: set[tuple[float, float]] = set()
     for plane in planes:
@@ -78,10 +102,16 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
             continue
         width_50 = None
         width_10 = None
-        if plane["crossing_angle"] is not None and opposite["crossing_angle"] is not None:
-            width_50 = round(plane["crossing_angle"] + opposite["crossing_angle"], 2)
-        if plane["crossing_angle_10"] is not None and opposite["crossing_angle_10"] is not None:
-            width_10 = round(plane["crossing_angle_10"] + opposite["crossing_angle_10"], 2)
+        # 峰值不在 γ=0 时，仅测下降边会把偏移量算进光束角（虚高 2×γ_peak），
+        # 改为「下降边 − 上升边」的真实半宽之和；峰值在 γ0 时结果与旧公式一致。
+        half_50 = _half_width(plane, "crossing_angle", "crossing_angle_asc")
+        half_50_opp = _half_width(opposite, "crossing_angle", "crossing_angle_asc")
+        if half_50 is not None and half_50_opp is not None:
+            width_50 = round(half_50 + half_50_opp, 2)
+        half_10 = _half_width(plane, "crossing_angle_10", "crossing_angle_10_asc")
+        half_10_opp = _half_width(opposite, "crossing_angle_10", "crossing_angle_10_asc")
+        if half_10 is not None and half_10_opp is not None:
+            width_10 = round(half_10 + half_10_opp, 2)
         if width_50 is None and width_10 is None:
             continue
         handled_axes.add(axis)

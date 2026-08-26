@@ -37,6 +37,8 @@ def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_pat
     from .ies_parser import IESParser
     from .photometric_engine import PhotometricEngine, contour_segments
     parsed = IESParser.parse(ies_path)
+    # 独立数据源：直接从 IES 文件原文读取中心光强，与报告引擎的计算互验
+    raw_center_cd = parsed["candela_values"][0][0] * parsed["candela_multiplier"]
     reader = PdfReader(str(pdf_path))
     extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
     ph = data["photometric"]
@@ -64,10 +66,10 @@ def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_pat
         ("真实照度网格可生成等值线", contours_ok),
         ("投影亮度模型数值有效", area > 0 and math.isfinite(engine.luminance(0,45,area))),
         ("归一化光强换算数值有效", ph["target_flux_lm"] > 0 and math.isfinite(engine.intensity(0,0)*1000/ph["target_flux_lm"])),
-        ("水平照度中心值符合反平方定律", abs(engine.horizontal_illuminance(0,0,height)-engine.intensity(0,0)/height**2)<.001),
+        ("水平照度中心值符合反平方定律", abs(engine.horizontal_illuminance(0,0,height)-raw_center_cd/height**2)<.001),
         ("空间等照度参考级可生成等值线", spatial_contours_ok),
         ("区域光通量采用5度分区并累计闭合", len(zones)==18 and abs(zones[-1]["cumulative_lm"]-ph["integrated_downward_flux_lm"])<.01),
-        ("照度距离中心值符合反平方定律", abs(engine.mean_intensity(0)/4-engine.mean_intensity(0)/(2**2))<.001),
+        ("照度距离中心值符合反平方定律", abs(engine.horizontal_illuminance(0,0,2*height)-raw_center_cd/(2*height)**2)<.001),
         ("PDF图表字段与参考表达完整", all(label in extracted for label in chart_labels)),
         ("报告光效计算一致", abs(ph["efficacy_lm_w"] - ph["target_flux_lm"] / data["electrical"]["power_w"]) < .001),
         ("PDF专业报告为13页", len(reader.pages) == 13),
