@@ -7,11 +7,11 @@ const calibrated=value=>Boolean(value.origin&&value.xMax&&value.yMax)
 
 export default function CurveImageDigitizer({onConfirm}){
   const canvasRef=useRef(null),nextId=useRef(1)
-  const[image,setImage]=useState(null),[mode,setMode]=useState('origin'),[calibration,setCalibration]=useState({origin:null,xMax:null,yMax:null}),[points,setPoints]=useState([]),[ranges,setRanges]=useState({xMin:'0',xMax:'1000',yMin:'0',yMax:'250'}),[message,setMessage]=useState(''),[imported,setImported]=useState(false)
+  const[image,setImage]=useState(null),[mode,setMode]=useState('origin'),[calibration,setCalibration]=useState({origin:null,xMax:null,yMax:null}),[points,setPoints]=useState([]),[ranges,setRanges]=useState({xMin:'',xMax:'',yMin:'',yMax:''}),[message,setMessage]=useState(''),[imported,setImported]=useState(false)
 
   useEffect(()=>{if(!image)return;let active=true;const bitmap=new Image();bitmap.onload=()=>{if(!active)return;const canvas=canvasRef.current,ctx=canvas?.getContext('2d');if(!canvas||!ctx)return;canvas.width=bitmap.naturalWidth;canvas.height=bitmap.naturalHeight;ctx.drawImage(bitmap,0,0);const scale=Math.max(1,bitmap.naturalWidth/700);ctx.lineWidth=2*scale;ctx.font=`${13*scale}px sans-serif`;const line=(a,b,color,dashed=true)=>{ctx.save();ctx.strokeStyle=color;ctx.setLineDash(dashed?[7*scale,5*scale]:[]);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore()};if(calibration.origin&&mode==='xMax')line(calibration.origin,{x:bitmap.naturalWidth,y:calibration.origin.y},'#14835f');if(calibration.origin&&calibration.xMax&&mode==='yMax')line(calibration.origin,{x:calibration.origin.x,y:0},'#14835f');if(calibrated(calibration)){line(calibration.origin,calibration.xMax,'#0d5c45');line(calibration.origin,calibration.yMax,'#0d5c45')}const mark=(point,color,label)=>{if(!point)return;ctx.beginPath();ctx.arc(point.x,point.y,6*scale,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=color;ctx.stroke();ctx.fillStyle=color;ctx.fillText(label,point.x+10*scale,point.y-9*scale)};mark(calibration.origin,'#0d5c45','O 原点');mark(calibration.xMax,'#0d5c45','X 最大');mark(calibration.yMax,'#0d5c45','Y 最大');points.forEach((point,index)=>mark(point,'#c07823',String(index+1)))};bitmap.src=image.src;return()=>{active=false;bitmap.onload=null}},[image,mode,calibration,points])
 
-  const reset=()=>{setCalibration({origin:null,xMax:null,yMax:null});setPoints([]);setMode('origin');setMessage('请先点击坐标图左下角的0/0交点。');setImported(false)}
+  const reset=()=>{setCalibration({origin:null,xMax:null,yMax:null});setPoints([]);setMode('origin');setMessage('请先按图面刻度填写上方四个轴范围，再点击坐标图左下角的0/0交点。');setImported(false)}
   const loadImage=event=>{const file=event.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const src=String(reader.result||'');const probe=new Image();probe.onload=()=>{setImage({src,name:file.name,width:probe.naturalWidth,height:probe.naturalHeight});reset()};probe.src=src};reader.readAsDataURL(file)}
   const updateRange=event=>{setRanges(current=>({...current,[event.target.name]:event.target.value}));setPoints([]);setImported(false)}
   const canvasClick=event=>{
@@ -25,8 +25,8 @@ export default function CurveImageDigitizer({onConfirm}){
     }
     if(mode==='yMax'){
       if(point.y>calibration.origin.y-canvas.height*.25||Math.abs(point.x-calibration.origin.x)>xTolerance){setMessage('Y轴点无效：它应在原点上方，并与原点基本处于同一垂直线。请重新点击左上角最大刻度点。');return}
-      if(!(Number(ranges.xMax)>Number(ranges.xMin)&&Number(ranges.yMax)>Number(ranges.yMin))){setMessage('坐标范围无效：最大值必须大于最小值。');return}
-      setCalibration(current=>({...current,yMax:point}));setMode('point');setMessage('坐标轴验证通过，可以沿黑色曲线点击5–12个数据点。');return
+      if(!(Number(ranges.xMax)>Number(ranges.xMin)&&Number(ranges.yMax)>Number(ranges.yMin))){setMessage('坐标范围无效：请先按图面刻度填写上方四个轴范围（例如 X 0–400 mA、Y 0–150 lm），最大值必须大于最小值。');return}
+      setCalibration(current=>({...current,yMax:point}));setMode('point');setMessage(`坐标轴验证通过，可以沿曲线点击5–12个数据点。当前标定：X ${ranges.xMin}–${ranges.xMax} mA，Y ${ranges.yMin}–${ranges.yMax} lm（如与图面刻度不符请先改范围再取点）。`);return
     }
     if(!calibrated(calibration))return
     const insideX=point.x>=calibration.origin.x&&point.x<=calibration.xMax.x,insideY=point.y>=calibration.yMax.y&&point.y<=calibration.origin.y
@@ -34,7 +34,7 @@ export default function CurveImageDigitizer({onConfirm}){
     const current=Number(ranges.xMin)+(point.x-calibration.origin.x)/(calibration.xMax.x-calibration.origin.x)*(Number(ranges.xMax)-Number(ranges.xMin))
     const flux=Number(ranges.yMin)+(calibration.origin.y-point.y)/(calibration.origin.y-calibration.yMax.y)*(Number(ranges.yMax)-Number(ranges.yMin))
     if(!Number.isFinite(current)||!Number.isFinite(flux))return
-    setPoints(list=>[...list,{...point,id:nextId.current++,current,flux}]);setMessage('数据点已采集。继续沿曲线取点，完成后检查下方数值。')
+    setPoints(list=>[...list,{...point,id:nextId.current++,current,flux}]);setMessage(`数据点已采集：${current.toFixed(1)} mA / ${flux.toFixed(1)} lm。继续沿曲线取点。`)
   }
   const updatePoint=(id,key,value)=>{setPoints(list=>list.map(point=>point.id===id?{...point,[key]:Number(value)}:point));setImported(false)}
   const removePoint=id=>{setPoints(list=>list.filter(point=>point.id!==id));setImported(false)}
