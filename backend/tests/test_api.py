@@ -11,7 +11,7 @@ from app import main
 from app.main import OUTPUT_DIR, SOURCE_REPORTS, UPLOADS, app
 from app.ies_parser import IESParser
 from app.photometry import build_photometry_summary
-from test_core import tilted_ies_text
+from test_core import tilted_ies_text, type_b_ies_text
 
 
 client = TestClient(app)
@@ -107,14 +107,26 @@ def test_source_pdf_is_preserved_and_linked_to_estimated_report(sample_path: Pat
     record["path"].unlink(missing_ok=True)
 
 
-def test_upload_rejects_non_type_c(sample_path: Path, tmp_path: Path):
-    content = sample_path.read_text(encoding="utf-8").replace("1 1000 1 3 2 1 2", "1 1000 1 3 2 2 2")
+def test_upload_accepts_type_b_and_generates_simplified_report(tmp_path: Path):
     path = tmp_path / "type-b.ies"
-    path.write_text(content, encoding="utf-8")
+    path.write_text(type_b_ies_text(), encoding="utf-8")
     with path.open("rb") as file:
         response = client.post("/api/upload", files={"file": ("type-b.ies", file, "application/octet-stream")})
-    assert response.status_code == 400
-    assert "Type C" in response.json()["error"]
+    assert response.status_code == 200
+    body = response.json()
+    assert body["parsed_info"]["photometric_type"] == 2
+    assert body["photometry"]["photometric_analysis_supported"] is False
+    generated = client.post("/api/generate", json={
+        "uploaded_file_id": body["uploaded_file_id"], "source_luminous_flux_lm": 1900,
+        "target_luminous_flux_lm": 2100, "target_model": "TypeB/21W",
+        "target_power_w": 21, "target_luminous_length_mm": 300, "target_luminous_width_mm": 50, "change_type": "power_only",
+    })
+    assert generated.status_code == 200
+    result = generated.json()
+    assert result["pdf_report_file"]
+    assert result["ies_preview"]["validation_passed"] is True
+    assert len(result["ies_preview"]["validation"]) == 11
+    cleanup_result(result)
 
 
 def test_upload_rejections(tmp_path: Path):

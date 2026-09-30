@@ -259,9 +259,7 @@ async def upload_ies(file: UploadFile = File(...)) -> dict[str, Any]:
         destination.unlink(missing_ok=True);raise HTTPException(status_code=500,detail="上传文件保存失败，请检查磁盘空间和目录权限。") from exc
     finally:
         await file.close()
-    if parsed["photometric_type"] != 1:
-        destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=400,detail="仅支持 LM-63 Type C 光度坐标（photometric type 1）。Type B/A 文件暂不支持，请提供 Type C 的 IES 文件。")
+    # Type B/A 文件已放行：光通量缩放链路对任意光度坐标正确；仅配光分析报告按 Type C 约定并标记提示。
     UPLOADS[file_id]={"path":destination,"parsed":parsed}
     fields=["ies_version","tilt_type","input_watts","number_of_lamps","lumens_per_lamp","candela_multiplier","num_vertical_angles","num_horizontal_angles","max_candela","is_absolute_photometry","supports_auto_conversion","suggested_source_luminous_flux_lm","photometric_type","units_type","width","length","height","ballast_factor","ballast_lamp_photometric_factor","keywords"]
     return {"uploaded_file_id":file_id,"file_name":original_name,"parsed_info":{key:parsed[key] for key in fields},"photometry":build_photometry_summary(parsed)}

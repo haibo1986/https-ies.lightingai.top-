@@ -191,6 +191,8 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
         zone["percent"] = round(zone["flux_lm"] / total_integrated * 100, 2) if total_integrated else 0
 
     return {
+        # Type C 专用配光分析（光束角/球面积分/等照度）仅对 Type C 有效；Type B/A 标记为不支持。
+        "photometric_analysis_supported": int(parsed.get("photometric_type", 1)) == 1,
         "vertical_angles": vertical_angles,
         "planes": planes,
         "beam_angles_50": beam_angles,

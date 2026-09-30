@@ -20,6 +20,8 @@ RED = colors.HexColor("#e11b22")
 BLUE = colors.HexColor("#1547ff")
 GREEN = colors.HexColor("#147a51")
 TOTAL_PAGES = 13
+# 非 Type C 简化版 PDF：摘要+提示 1 页、原始光强数据表 3 页、声明 1 页。
+REDUCED_PAGE_COUNT = 5
 
 
 def _engine(ph: dict[str, Any]) -> PhotometricEngine:
@@ -87,12 +89,12 @@ def _logo(c: canvas.Canvas, data: dict[str, Any]) -> None:
     _text(c, 36 * mm, H - 23 * mm, data["company"], 10, GREEN, "center")
 
 
-def _header(c: canvas.Canvas, data: dict[str, Any], page: int, title: str) -> None:
+def _header(c: canvas.Canvas, data: dict[str, Any], page: int, title: str, total: int = TOTAL_PAGES) -> None:
     _logo(c, data)
     _text(c, 61 * mm, H - 18 * mm, data["company"], 8.5)
     _text(c, 61 * mm, H - 23 * mm, data.get("company_website") or "", 6.5, MUTED)
     _text(c, 61 * mm, H - 27 * mm, data.get("company_phone") or "", 6.5, MUTED)
-    _text(c, W - 17 * mm, H - 22 * mm, f"第 {page} 页  共 {TOTAL_PAGES} 页", 8, INK, "right")
+    _text(c, W - 17 * mm, H - 22 * mm, f"第 {page} 页  共 {total} 页", 8, INK, "right")
     c.setStrokeColor(INK); c.setLineWidth(.45); c.line(17 * mm, H - 31 * mm, W - 17 * mm, H - 31 * mm)
     _text(c, 17 * mm, H - 36 * mm, f"报告编号：{data['report_number']}", 7.2)
     _text(c, W - 17 * mm, H - 36 * mm, f"生成时间：{data['generated_on']}", 7.2, INK, "right")
@@ -224,6 +226,9 @@ def _draw_luminance_limit(c: canvas.Canvas, data: dict[str, Any]) -> None:
 def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     c=canvas.Canvas(str(output_path),pagesize=A4,pageCompression=1); c.setTitle(f"{data['product']['model']} 光度数据报告")
     p,e,ph=data["product"],data["electrical"],data["photometric"]
+    # 非 Type C 光度坐标：配光分析图表均为 Type C 专用，改出简化版 PDF（不输出误导性图表）。
+    if ph.get("photometric_analysis_supported") is False:
+        _reduced_pdf(c,data); c.save(); return str(output_path)
 
     # 1 Summary, with the former image area replaced by two large plots.
     _header(c,data,1,"灯具光度数据报告")
@@ -301,10 +306,48 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
 
     # 13 Traceability and statement.
     _header(c,data,13,"换算依据与使用声明")
+    _statement_body(c,data); _finish(c,data)
+    c.save(); return str(output_path)
+
+
+def _statement_body(c: canvas.Canvas, data: dict[str, Any]) -> None:
+    p, ph = data["product"], data["photometric"]
     rows=[("原始 IES",data['conversion']['source_file']),("目标型号",p['model']),("原始实测光通量",f"{ph['source_flux_lm']:.3f} lm"),("目标估算光通量",f"{ph['target_flux_lm']:.3f} lm"),("光强缩放倍率",f"{data['conversion']['scale_factor']:.6f}"),("发光面尺寸",f"{p['luminous_length_mm']:.1f} × {p['luminous_width_mm']:.1f} mm"),("风险等级",data['conversion']['risk_level'])]
     for i,(label,value) in enumerate(rows):
         y=H-(75+i*12)*mm;_text(c,25*mm,y,label,7,MUTED);_text(c,78*mm,y,value,7.5);c.setStrokeColor(LINE);c.line(22*mm,y-3*mm,W-22*mm,y-3*mm)
     _text(c,22*mm,98*mm,"工程限制",10)
     for i,line in enumerate((data['conversion']['risk_message'],"本报告假设配光形状不变，仅按目标光通量同比缩放绝对光强。","透镜、光学结构、安装方式或 LED 排布变化时，应重新进行光度实测。","正式认证、招投标和验收不得使用本报告替代实验室报告。")): _text(c,27*mm,(86-i*10)*mm,f"• {line}",7.5)
-    _text(c,22*mm,42*mm,data['disclaimer'],8,GREEN); _finish(c,data)
-    c.save(); return str(output_path)
+    _text(c,22*mm,42*mm,data['disclaimer'],8,GREEN)
+
+
+def _reduced_pdf(c: canvas.Canvas, data: dict[str, Any]) -> None:
+    """非 Type C 简化版 PDF：不含 Type C 专用配光分析图表，仅保留参数摘要、原始光强数据表与使用声明。"""
+    p, e, ph = data["product"], data["electrical"], data["photometric"]
+    ptype = int(ph.get("photometric_type", 1))
+    # 1 参数摘要 + 醒目提示。
+    _header(c, data, 1, "灯具光度数据报告", total=REDUCED_PAGE_COUNT)
+    _summary_block(c,17*mm,H-67*mm,"灯具属性",[("生产工厂",p["manufacturer"]),("灯具规格",p["model"]),("发光面长度",f"{p['luminous_length_mm']:.1f} mm"),("发光面宽度",f"{p['luminous_width_mm']:.1f} mm"),("相关色温",f"{p.get('cct_k') or '-'} K"),("显色指数",f"Ra {p.get('cri_ra') or '-'}")],82*mm)
+    _summary_block(c,108*mm,H-67*mm,"电气参数",[("电压",f"{e.get('voltage_v') or '-'} V"),("电流",f"{e.get('current_a') or '-'} A"),("功率",f"{e['power_w']:.2f} W"),("功率因数",str(e.get('power_factor') or '-')),("光源光通量",f"{ph['target_flux_lm']:.2f} lm")],85*mm)
+    _summary_block(c,17*mm,H-116*mm,"光度结果",[("灯具光通量",f"{ph['target_flux_lm']:.3f} lm"),("灯具光效",f"{ph['efficacy_lm_w']:.2f} lm/W"),("最大光强",f"{ph['max_candela_cd']:.2f} cd"),("发光面面积",f"{p['luminous_length_mm']*p['luminous_width_mm']/1_000_000:.6f} m²")],176*mm)
+    c.setStrokeColor(colors.HexColor("#c07823")); c.setLineWidth(1); c.rect(17*mm,62*mm,W-34*mm,66*mm,fill=0,stroke=1)
+    _text(c,22*mm,118*mm,f"⚠️ 该 IES 为 Type {ptype} 光度坐标",9.5,colors.HexColor("#8a5a12"))
+    for i,line in enumerate(("其角度范围不是 Type C 的 0-180°（垂直）/ 0-360°（水平）约定。","本简化版报告不包含极坐标/直角坐标配光曲线、光束角、等照度、亮度限制与区域光通量等 Type C 专用配光分析。","光通量缩放换算与原始光强数据表准确有效；如需该光度类型的正式配光分析，请提供 Type C 实测文件或另行坐标转换。","本报告为 ESTIMATED 估算结果，不可用于认证、验收或第三方检测结论。")):
+        _text(c,22*mm,(106-i*10)*mm,f"• {line}",7.5)
+    _finish(c,data)
+    # 2-4 原始光强数据表（与经典版同构，3 页固定）。
+    angles=ph["vertical_angles"]; planes=ph["planes"]
+    chunks=[list(range(i,min(i+31,len(angles)))) for i in range(0,len(angles),31)]
+    while len(chunks)<3: chunks.append([])
+    for page,indices in enumerate(chunks[:3],start=2):
+        _header(c,data,page,"原始光强数据表",total=REDUCED_PAGE_COUNT)
+        table_x=17*mm; col=(W-34*mm)/(len(planes)+1); y=H-68*mm
+        _text(c,table_x,y,"角度",5.5)
+        for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,y,f"{plane['c_angle']:g}°",5.3,INK,"right")
+        for r,i in enumerate(indices):
+            yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"{angles[i]:g}°",5.2)
+            for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
+            if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
+        _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
+    # 5 换算依据与使用声明。
+    _header(c,data,5,"换算依据与使用声明",total=REDUCED_PAGE_COUNT)
+    _statement_body(c,data); _finish(c,data)

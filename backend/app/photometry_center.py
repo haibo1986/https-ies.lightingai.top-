@@ -47,6 +47,8 @@ def _plane_peak_gamma(vertical_angles: list[float], row: list[float]) -> tuple[i
 
 def center_photometry(data: dict[str, Any]) -> dict[str, Any]:
     """对中校正：返回 deepcopy 后的新 dict，各 C 平面曲线已平移至峰值对准 γ=0。"""
+    if int(data.get("photometric_type", 1)) != 1:
+        raise ValueError("对中校正仅支持 LM-63 Type C 光度坐标，Type B/A 文件请勿启用该选项。")
     vertical_angles = data.get("vertical_angles") or []
     candela_values = data.get("candela_values") or []
     horizontal_angles = data.get("horizontal_angles") or []

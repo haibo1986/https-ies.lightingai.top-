@@ -9,7 +9,7 @@ from app.ies_writer import IESWriter, sanitize_file_stem
 from app.photometry import build_photometry_summary
 from app.report_generator import ReportGenerator
 from app.report_model import build_report_data
-from app.classic_report import generate_classic_pdf
+from app.classic_report import REDUCED_PAGE_COUNT, generate_classic_pdf
 from app.standard_report import validate_standard_report
 from app.risk_rules import evaluate_risk
 from app.photometry_center import center_photometry
@@ -51,6 +51,25 @@ def _parse_tilted(tmp_path: Path, **kwargs) -> dict:
     path = tmp_path / "tilted.ies"
     path.write_text(tilted_ies_text(**kwargs), encoding="utf-8")
     return IESParser.parse(path)
+
+
+def type_b_ies_text() -> str:
+    """合成 Type B 光度文件：垂直/水平角均 -90~90，0° 峰值的高斯型配光（仿 SW3015 类投光灯）。"""
+    vertical = list(range(-90, 91, 15))
+    horizontal = [-90, -45, 0, 45, 90]
+    lines = [
+        "IESNA:LM-63-2002",
+        "[TEST] Synthetic Type B fixture",
+        "TILT=NONE",
+        f"1 1900 1 {len(vertical)} {len(horizontal)} 2 2 0.1 0.2 0.3",
+        "1 1 21",
+        " ".join(str(value) for value in vertical),
+        " ".join(str(value) for value in horizontal),
+    ]
+    for h in horizontal:
+        factor = 0.7 + 0.3 * (1 - abs(h) / 90)
+        lines.append(" ".join(f"{200 * factor * math.exp(-((v / 25) ** 2)):.3f}" for v in vertical))
+    return "\n".join(lines) + "\n"
 
 
 def test_parser_reads_complete_matrix(sample_path: Path):
@@ -117,6 +136,52 @@ def test_parser_rejects_unsupported_or_incomplete(fixture: str):
     path = Path(__file__).parent / "sample_files" / fixture
     with pytest.raises(IESParseError):
         IESParser.parse(path)
+
+
+def test_parser_accepts_type_b_negative_angles(tmp_path: Path):
+    path = tmp_path / "type-b.ies"
+    path.write_text(type_b_ies_text(), encoding="utf-8")
+    parsed = IESParser.parse(path)
+    assert parsed["photometric_type"] == 2
+    assert parsed["vertical_angles"][0] == -90
+    assert parsed["vertical_angles"][-1] == 90
+    assert parsed["horizontal_angles"] == [-90, -45, 0, 45, 90]
+    summary = build_photometry_summary(parsed)
+    assert summary["photometric_analysis_supported"] is False
+    assert summary["vertical_range"] == [-90, 90]
+    assert summary["horizontal_range"] == [-90, 90]
+
+
+def test_parser_still_rejects_negative_angles_for_type_c(tmp_path: Path):
+    content = type_b_ies_text().replace("5 2 2 0.1", "5 1 2 0.1")
+    path = tmp_path / "type-c-negative.ies"
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(IESParseError, match="垂直角必须位于 0 到 180 度之间"):
+        IESParser.parse(path)
+
+
+def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):
+    path = tmp_path / "type-b.ies"
+    path.write_text(type_b_ies_text(), encoding="utf-8")
+    parsed = IESParser.parse(path)
+    parsed["original_file_name"] = "type-b.ies"
+    scaled = IESScaler.scale(parsed, 1900, 2100, "TypeB-21W", 21, "power_only")
+    risk = evaluate_risk("power_only")
+    data = build_report_data(parsed, scaled, risk, {})
+    assert data["photometric"]["photometric_type"] == 2
+    assert data["photometric"]["photometric_analysis_supported"] is False
+    ies_path, pdf_path = tmp_path / "out.ies", tmp_path / "report.pdf"
+    IESWriter.write(scaled, ies_path)
+    generate_classic_pdf(data, pdf_path)
+    assert len(__import__("pypdf").PdfReader(pdf_path).pages) == REDUCED_PAGE_COUNT
+    checks = validate_standard_report(data, ies_path, pdf_path)
+    assert all(item["ok"] for item in checks)
+    assert any("非TypeC" in item["label"] for item in checks)
+    # 缩放矩阵按光通量比生效（1900 → 2100，比例 1.105263…，保留 3 位小数）
+    assert scaled["candela_values"][0][6] == round(parsed["candela_values"][0][6] * 2100 / 1900, 3)
+    markdown_path = tmp_path / "report.md"
+    ReportGenerator.generate(parsed, scaled, risk, markdown_path)
+    assert "Type 2 光度坐标" in markdown_path.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(

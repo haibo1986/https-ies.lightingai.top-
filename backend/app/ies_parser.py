@@ -93,7 +93,8 @@ class IESParser:
             raise IESParseError("每灯光通量必须大于 0，绝对光度文件应使用 -1。")
         if numbers[2] <= 0:
             raise IESParseError("candela_multiplier 必须大于 0。")
-        if int(numbers[5]) not in {1, 2, 3}:
+        photometric_type = int(numbers[5])
+        if photometric_type not in {1, 2, 3}:
             raise IESParseError("photometric_type 必须是 1、2 或 3。")
         if int(numbers[6]) not in {1, 2}:
             raise IESParseError("units_type 必须是 1 或 2。")
@@ -126,10 +127,15 @@ class IESParser:
             raise IESParseError("垂直角必须按升序排列。")
         if any(b < a for a, b in zip(horizontal_angles, horizontal_angles[1:])):
             raise IESParseError("水平角必须按升序排列。")
-        if any(angle < 0 or angle > 180 for angle in vertical_angles):
-            raise IESParseError("垂直角必须位于 0 到 180 度之间。")
-        if any(angle < 0 or angle > 360 for angle in horizontal_angles):
-            raise IESParseError("水平角必须位于 0 到 360 度之间。")
+        # 角度范围按 photometric_type 区分：Type B 合法使用 -90~90，Type A 垂直 -90~90、水平 -180~180。
+        vertical_limits = {1: (0.0, 180.0), 2: (-90.0, 90.0), 3: (-90.0, 90.0)}
+        horizontal_limits = {1: (0.0, 360.0), 2: (-90.0, 90.0), 3: (-180.0, 180.0)}
+        v_min, v_max = vertical_limits[photometric_type]
+        h_min, h_max = horizontal_limits[photometric_type]
+        if any(angle < v_min or angle > v_max for angle in vertical_angles):
+            raise IESParseError(f"垂直角必须位于 {v_min:g} 到 {v_max:g} 度之间。")
+        if any(angle < h_min or angle > h_max for angle in horizontal_angles):
+            raise IESParseError(f"水平角必须位于 {h_min:g} 到 {h_max:g} 度之间。")
         if any(value < 0 for value in flat_candela):
             raise IESParseError("candela 数据不能包含负数。")
 
@@ -144,7 +150,7 @@ class IESParser:
             "candela_multiplier": numbers[2],
             "num_vertical_angles": num_vertical,
             "num_horizontal_angles": num_horizontal,
-            "photometric_type": int(numbers[5]),
+            "photometric_type": photometric_type,
             "units_type": int(numbers[6]),
             "width": numbers[7],
             "length": numbers[8],

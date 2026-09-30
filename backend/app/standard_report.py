@@ -36,12 +36,29 @@ def _text(c: canvas.Canvas, x: float, y: float, value: Any, size=9, color=INK, a
 def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_path: str | Path) -> list[dict[str, Any]]:
     from .ies_parser import IESParser
     from .photometric_engine import PhotometricEngine, contour_segments
+    from .classic_report import REDUCED_PAGE_COUNT
     parsed = IESParser.parse(ies_path)
     # 独立数据源：直接从 IES 文件原文读取中心光强，与报告引擎的计算互验
     raw_center_cd = parsed["candela_values"][0][0] * parsed["candela_multiplier"]
     reader = PdfReader(str(pdf_path))
     extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
     ph = data["photometric"]
+    # 非 Type C 光度坐标：Type C 专用校验项全部跳过，只保留文件与格式层面的检查。
+    if ph.get("photometric_analysis_supported") is False:
+        checks = [
+            ("IES格式重新解析成功", True),
+            ("光强矩阵数量一致", sum(map(len, parsed["candela_values"])) == parsed["num_vertical_angles"] * parsed["num_horizontal_angles"]),
+            ("IES与报告目标功率一致", abs(parsed["input_watts"] - data["electrical"]["power_w"]) < .001),
+            ("IES与报告最大光强一致", abs(parsed["max_candela"] - ph["max_candela_cd"]) < .02),
+            ("非TypeC配光分析已按不支持标记", ph.get("photometric_analysis_supported") is False),
+            ("PDF为简化版式页数", len(reader.pages) == REDUCED_PAGE_COUNT),
+            ("发光面尺寸有效", data["product"]["luminous_length_mm"] > 0 and data["product"]["luminous_width_mm"] > 0),
+            ("PDF包含目标型号", data["product"]["model"] in extracted),
+            ("PDF包含估算声明", "ESTIMATED" in extracted and "非实验室实测" in extracted),
+            ("IES没有负光强", all(value >= 0 for row in parsed["candela_values"] for value in row)),
+            ("IES已标记ESTIMATED", any("ESTIMATED" in line for line in parsed["header_lines"])),
+        ]
+        return [{"label": label, "ok": bool(ok)} for label, ok in checks]
     engine = PhotometricEngine(ph["vertical_angles"],[p["c_angle"] for p in ph["planes"]],[p["candela"] for p in ph["planes"]])
     source_points_ok = all(abs(engine.intensity(plane["c_angle"], gamma)-value)<.001 for plane in ph["planes"] for gamma,value in zip(ph["vertical_angles"],plane["candela"]))
     integrated = engine.integrated_flux(); flux_error = abs(integrated-ph["target_flux_lm"])/ph["target_flux_lm"]*100

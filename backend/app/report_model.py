@@ -16,9 +16,13 @@ def build_report_data(
     """Build the single canonical data source used by every report renderer."""
     supplement = {key: value for key, value in (supplement or {}).items() if value not in (None, "")}
     photometry = build_photometry_summary(target)
-    engine = PhotometricEngine.from_parsed(target)
-    photometry["integrated_downward_flux_lm"] = engine.integrated_flux()
-    photometry["zonal_flux"] = engine.zonal_flux()
+    # 专业报告插值引擎仅支持 Type C；Type B/A 保留摘要层结果，跳过 Type C 专用积分
+    if int(target.get("photometric_type", 1)) == 1:
+        engine = PhotometricEngine.from_parsed(target)
+        photometry["integrated_downward_flux_lm"] = engine.integrated_flux()
+        photometry["zonal_flux"] = engine.zonal_flux()
+    else:
+        photometry["photometric_analysis_supported"] = False
     source_flux = float(target["source_luminous_flux_lm"])
     target_flux = float(target["target_luminous_flux_lm"])
     # IES 尺寸字段的单位由 units_type 决定：1=英尺，2=米。
@@ -52,6 +56,7 @@ def build_report_data(
             "power_factor": supplement.get("power_factor"),
         },
         "photometric": {
+            "photometric_type": int(target.get("photometric_type", 1)),
             "source_flux_lm": source_flux, "target_flux_lm": target_flux,
             "efficacy_lm_w": target_flux / float(target["target_power_w"]),
             "max_candela_cd": float(target["max_candela"]),
