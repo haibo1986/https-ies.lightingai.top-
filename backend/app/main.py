@@ -340,10 +340,17 @@ def download(file_name: str) -> FileResponse:
     return FileResponse(path,filename=path.name,media_type="application/octet-stream")
 
 
+class LedReference(BaseModel):
+    """LED 曲线的绝对光通量基准点：该电流下的单颗光通量（lm），用于直接计算绝对光通量。"""
+    current_ma: float
+    flux_lm: float
+
+
 class LedModelIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     note: str | None = Field(default=None, max_length=200)
     points: list[list[float]]
+    reference: LedReference | None = None
 
 
 def _load_led_library() -> dict[str, Any]:
@@ -371,7 +378,12 @@ def save_led_model(payload: LedModelIn) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="至少需要两个有效数据点。")
     library = _load_led_library()
     models = [model for model in library.get("models", []) if model.get("name") != payload.name]
-    models.append({"name": payload.name, "note": payload.note or "", "points": points})
+    model_entry: dict[str, Any] = {"name": payload.name, "note": payload.note or "", "points": points}
+    if payload.reference is not None:
+        if not all(math.isfinite(value) and value > 0 for value in (payload.reference.current_ma, payload.reference.flux_lm)):
+            raise HTTPException(status_code=400, detail="基准点电流和光通量必须为正数。")
+        model_entry["reference"] = {"current_ma": round(payload.reference.current_ma, 2), "flux_lm": round(payload.reference.flux_lm, 2)}
+    models.append(model_entry)
     library["models"] = models
     LED_LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
     LED_LIBRARY_PATH.write_text(json.dumps(library, ensure_ascii=False, indent=2), encoding="utf-8")

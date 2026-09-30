@@ -310,6 +310,14 @@ def test_led_library_seed_save_and_dedupe(tmp_path: Path, monkeypatch):
     assert names.count("测试2835") == 1  # 同名覆盖
     assert client.post("/api/led-library", json={"name": "坏数据", "points": [[60, 23]]}).status_code == 400
     assert client.post("/api/led-library", json={"name": "坏数据", "points": [[-1, 23], [100, 36]]}).status_code == 400
+    # 基准点（绝对光通量锚点）保存与读取
+    saved = client.post("/api/led-library", json={
+        "name": "带基准2835", "note": "带基准", "points": [[60, 23], [100, 36]],
+        "reference": {"current_ma": 100, "flux_lm": 36},
+    }).json()["models"]
+    assert saved[-1]["reference"] == {"current_ma": 100, "flux_lm": 36}
+    assert any(m["name"] == "带基准2835" and m.get("reference") == {"current_ma": 100, "flux_lm": 36} for m in client.get("/api/led-library").json()["models"])
+    assert client.post("/api/led-library", json={"name": "坏基准", "points": [[60, 23], [100, 36]], "reference": {"current_ma": 0, "flux_lm": 36}}).status_code == 400
 
 
 def test_generate_with_photometric_centering(tmp_path: Path):

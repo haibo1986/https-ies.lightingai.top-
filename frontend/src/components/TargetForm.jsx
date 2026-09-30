@@ -22,8 +22,10 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
   const peak = upload?.photometry?.peak_direction
   const peakGamma = peak ? Number(peak.gamma_angle || 0) : null
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }))
-  const applyEstimate = ({ flux, changeType, targetLength, targetWidth }) => setForm(current => ({
-    ...current, target_luminous_flux_lm: String(flux), change_type: changeType,
+  const applyEstimate = ({ flux, sourceFlux, changeType, targetLength, targetWidth }) => setForm(current => ({
+    ...current,
+    source_luminous_flux_lm: sourceFlux != null ? String(sourceFlux) : current.source_luminous_flux_lm,
+    target_luminous_flux_lm: String(flux), change_type: changeType,
     target_luminous_length_mm: targetLength ? String(targetLength) : '',
     target_luminous_width_mm: targetWidth ? String(targetWidth) : '',
   }))
