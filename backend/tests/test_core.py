@@ -160,6 +160,20 @@ def test_parser_still_rejects_negative_angles_for_type_c(tmp_path: Path):
         IESParser.parse(path)
 
 
+def test_type_b_beam_angle_and_symmetry_from_principal_plane(tmp_path: Path):
+    path = tmp_path / "type-b.ies"
+    path.write_text(type_b_ies_text(), encoding="utf-8")
+    summary = build_photometry_summary(IESParser.parse(path))
+    beams = summary["beam_angles_50"]
+    assert len(beams) == 1
+    assert beams[0]["label"] == "H0°垂直剖面"
+    # 高斯合成文件（σ=25°，15° 网格）：FWHM 理论值 2√(2ln2)·σ ≈ 41.59°，线性插值后 42.87°
+    assert beams[0]["beam_angle_50"] == pytest.approx(42.87, abs=0.05)
+    assert beams[0]["field_angle_10"] == pytest.approx(80.77, abs=0.1)
+    # ±h 平面完全一致 → 旋转对称
+    assert summary["distribution_type"] == "rotational_symmetric"
+
+
 def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):
     path = tmp_path / "type-b.ies"
     path.write_text(type_b_ies_text(), encoding="utf-8")

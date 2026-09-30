@@ -90,48 +90,79 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
         return plane[crossing_key] - ascending
 
     beam_angles = []
-    handled_axes: set[tuple[float, float]] = set()
-    for plane in planes:
-        c_angle = round(plane["c_angle"] % 360, 6)
-        opposite_angle = round((c_angle + 180) % 360, 6)
-        axis = tuple(sorted((c_angle, opposite_angle)))
-        if axis in handled_axes:
-            continue
-        opposite = represented_plane(opposite_angle)
-        if opposite is None:
-            continue
-        width_50 = None
-        width_10 = None
-        # 峰值不在 γ=0 时，仅测下降边会把偏移量算进光束角（虚高 2×γ_peak），
-        # 改为「下降边 − 上升边」的真实半宽之和；峰值在 γ0 时结果与旧公式一致。
-        half_50 = _half_width(plane, "crossing_angle", "crossing_angle_asc")
-        half_50_opp = _half_width(opposite, "crossing_angle", "crossing_angle_asc")
-        if half_50 is not None and half_50_opp is not None:
-            width_50 = round(half_50 + half_50_opp, 2)
-        half_10 = _half_width(plane, "crossing_angle_10", "crossing_angle_10_asc")
-        half_10_opp = _half_width(opposite, "crossing_angle_10", "crossing_angle_10_asc")
-        if half_10 is not None and half_10_opp is not None:
-            width_10 = round(half_10 + half_10_opp, 2)
-        if width_50 is None and width_10 is None:
-            continue
-        handled_axes.add(axis)
+    if int(parsed.get("photometric_type", 1)) == 1:
+        handled_axes: set[tuple[float, float]] = set()
+        for plane in planes:
+            c_angle = round(plane["c_angle"] % 360, 6)
+            opposite_angle = round((c_angle + 180) % 360, 6)
+            axis = tuple(sorted((c_angle, opposite_angle)))
+            if axis in handled_axes:
+                continue
+            opposite = represented_plane(opposite_angle)
+            if opposite is None:
+                continue
+            width_50 = None
+            width_10 = None
+            # 峰值不在 γ=0 时，仅测下降边会把偏移量算进光束角（虚高 2×γ_peak），
+            # 改为「下降边 − 上升边」的真实半宽之和；峰值在 γ0 时结果与旧公式一致。
+            half_50 = _half_width(plane, "crossing_angle", "crossing_angle_asc")
+            half_50_opp = _half_width(opposite, "crossing_angle", "crossing_angle_asc")
+            if half_50 is not None and half_50_opp is not None:
+                width_50 = round(half_50 + half_50_opp, 2)
+            half_10 = _half_width(plane, "crossing_angle_10", "crossing_angle_10_asc")
+            half_10_opp = _half_width(opposite, "crossing_angle_10", "crossing_angle_10_asc")
+            if half_10 is not None and half_10_opp is not None:
+                width_10 = round(half_10 + half_10_opp, 2)
+            if width_50 is None and width_10 is None:
+                continue
+            handled_axes.add(axis)
+            beam_angles.append({
+                "label": f"C{plane['c_angle']:g}–C{opposite_angle:g}平面",
+                "positive_c_angle": plane["c_angle"],
+                "negative_c_angle": opposite_angle,
+                "negative_data_c_angle": opposite["c_angle"],
+                "beam_angle_50": width_50,
+                "field_angle_10": width_10,
+            })
+    else:
+        # Type B/A：水平平面中只有 H≈0 经过光轴，Type C 的 180° 配对映射不适用
+        # （负角度取模后落在 270~360 区间，represented_plane 会返回 None）。
+        # 光束角改为「H≈0 垂直主剖面」的单平面 FWHM（下降边 − 上升边）。
+        main_plane = min(planes, key=lambda plane: abs(plane["c_angle"]))
+        width_50 = _half_width(main_plane, "crossing_angle", "crossing_angle_asc")
+        width_10 = _half_width(main_plane, "crossing_angle_10", "crossing_angle_10_asc")
         beam_angles.append({
-            "label": f"C{plane['c_angle']:g}–C{opposite_angle:g}平面",
-            "positive_c_angle": plane["c_angle"],
-            "negative_c_angle": opposite_angle,
-            "negative_data_c_angle": opposite["c_angle"],
-            "beam_angle_50": width_50,
-            "field_angle_10": width_10,
+            "label": f"H{main_plane['c_angle']:g}°垂直剖面",
+            "positive_c_angle": 0.0,
+            "negative_c_angle": 180.0,
+            "negative_data_c_angle": main_plane["c_angle"],
+            "beam_angle_50": round(width_50, 2) if width_50 is not None else None,
+            "field_angle_10": round(width_10, 2) if width_10 is not None else None,
         })
 
     peak_plane = max(planes, key=lambda plane: plane["peak_intensity"])
     global_peak = max(plane["peak_intensity"] for plane in planes) or 1
-    normalized_shapes = [[value / global_peak for value in plane["candela"]] for plane in planes]
-    maximum_shape_delta = 0.0
-    if len(normalized_shapes) > 1:
-        reference = normalized_shapes[0]
-        maximum_shape_delta = max(abs(value - reference[index]) for shape in normalized_shapes[1:] for index, value in enumerate(shape))
-    distribution_type = "rotational_symmetric" if len(planes) == 1 or maximum_shape_delta <= 0.05 else "approximately_symmetric" if maximum_shape_delta <= 0.15 else "asymmetric"
+    if int(parsed.get("photometric_type", 1)) == 1:
+        # Type C：所有 C 平面都经过光轴，旋转对称配光的各平面垂直轮廓应完全一致。
+        normalized_shapes = [[value / global_peak for value in plane["candela"]] for plane in planes]
+        maximum_shape_delta = 0.0
+        if len(normalized_shapes) > 1:
+            reference = normalized_shapes[0]
+            maximum_shape_delta = max(abs(value - reference[index]) for shape in normalized_shapes[1:] for index, value in enumerate(shape))
+        distribution_type = "rotational_symmetric" if len(planes) == 1 or maximum_shape_delta <= 0.05 else "approximately_symmetric" if maximum_shape_delta <= 0.15 else "asymmetric"
+    else:
+        # Type B/A：水平平面不都经过光轴，跨平面比形状必然误判；
+        # 对称性改按 +h/−h 成对镜像平面判断（绕光轴对称的配光，±h 平面应一致）。
+        pair_delta = 0.0
+        pair_count = 0
+        for plane in planes:
+            h = plane["c_angle"]
+            if h > 0:
+                opposite = next((item for item in planes if abs(item["c_angle"] + h) < 1e-6), None)
+                if opposite is not None:
+                    pair_delta = max(pair_delta, max(abs(a - b) for a, b in zip(plane["candela"], opposite["candela"])) / global_peak)
+                    pair_count += 1
+        distribution_type = "asymmetric" if pair_count == 0 else ("rotational_symmetric" if pair_delta <= 0.05 else "approximately_symmetric" if pair_delta <= 0.15 else "asymmetric")
     angle_steps = [round(vertical_angles[index + 1] - vertical_angles[index], 6) for index in range(len(vertical_angles) - 1)]
     # Zonal flux is integrated from the azimuth-averaged intensity.  This works
     # for full LM-63 C-plane sets and for the standard symmetry encodings.
