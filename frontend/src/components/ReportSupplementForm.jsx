@@ -20,15 +20,15 @@ const FIELD_GROUPS = [
     ['cri_ra','显色指数','number','Ra','一般 70–95，如 80'],
   ]},
   { title: '灯具外形', tag: 'MECHANICAL', fields: [
-    ['fixture_length_mm','灯具长度','number','mm','灯具外形尺寸（非发光面）'],
-    ['fixture_width_mm','灯具宽度','number','mm','灯具外形尺寸（非发光面）'],
-    ['fixture_height_mm','灯具高度','number','mm','灯具外形尺寸（非发光面）'],
+    ['fixture_length_mm','灯具长度','number','mm','灯具外壳长度（非发光面），仅用于报告信息展示，不参与计算'],
+    ['fixture_width_mm','灯具宽度','number','mm','灯具外壳宽度（非发光面），仅用于报告信息展示，不参与计算'],
+    ['fixture_height_mm','灯具高度','number','mm','灯具外壳高度（非发光面），仅用于报告信息展示，不参与计算'],
     ['calculation_height_m','等照度计算高度','number','m','建议：洗墙灯 1–4m · 投光灯 3–25m · 路灯按杆高 6–12m（行业经验值）；仅影响报告等照度图，不影响 IES 数据'],
     ['plane_extent_m','平面计算半径','number','m','一般取计算高度的 3 倍左右；仅影响报告等照度图'],
   ]},
 ]
 
-export default function ReportSupplementForm({ value, onChange }) {
+export default function ReportSupplementForm({ value, onChange, luminousDims }) {
   const [customers, setCustomers] = useState([])
   const [customerName, setCustomerName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -69,7 +69,7 @@ export default function ReportSupplementForm({ value, onChange }) {
       {customerMessage && <span className={`customer-message${customerMessage.startsWith('保存失败') ? ' error' : ''}`}>{customerMessage}</span>}
     </div>
     {FIELD_GROUPS.map(group => <section className="supplement-group" key={group.tag}>
-      <div className="supplement-label"><span>{group.tag}</span><strong>{group.title}</strong></div>
+      <div className="supplement-label"><span>{group.tag}</span><strong>{group.title}</strong>{group.tag==='MECHANICAL'&&luminousDims?.length&&<button type="button" className="button secondary copy-dims" onClick={()=>onChange({...value,fixture_length_mm:luminousDims.length,fixture_width_mm:luminousDims.width})}>长宽与发光面相同</button>}</div>
       <div className="supplement-grid">{group.fields.map(([name,label,type,placeholder,hint]) => <label key={name}><span>{label}</span><div className="supplement-input"><input name={name} type={type} step={type === 'number' ? 'any' : undefined} min={type === 'number' ? '0' : undefined} value={value[name] || ''} onChange={update} placeholder={placeholder}/>{type === 'number' && placeholder && !['0-1','Ra'].includes(placeholder) && <i>{placeholder}</i>}</div>{hint && <small className="supplement-hint">{hint}</small>}</label>)}</div>
     </section>)}
     <div className="brand-upload"><div><strong>公司 Logo</strong><span>PNG/JPG，建议透明背景，不超过 2 MB</span></div><label>{value.company_logo_name || '选择 Logo'}<input type="file" accept="image/png,image/jpeg" onChange={addLogo}/></label>{value.company_logo_data_url && <img src={value.company_logo_data_url} alt="公司Logo预览"/>}</div>

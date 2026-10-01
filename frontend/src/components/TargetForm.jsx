@@ -22,12 +22,10 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
   const peak = upload?.photometry?.peak_direction
   const peakGamma = peak ? Number(peak.gamma_angle || 0) : null
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }))
-  const applyEstimate = ({ flux, sourceFlux, changeType, targetLength, targetWidth }) => setForm(current => ({
+  const applyEstimate = ({ flux, sourceFlux, changeType }) => setForm(current => ({
     ...current,
     source_luminous_flux_lm: sourceFlux != null ? String(sourceFlux) : current.source_luminous_flux_lm,
     target_luminous_flux_lm: String(flux), change_type: changeType,
-    target_luminous_length_mm: targetLength ? String(targetLength) : '',
-    target_luminous_width_mm: targetWidth ? String(targetWidth) : '',
   }))
 
   async function addSourceReport(event) {
@@ -52,7 +50,7 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
         <label><span>目标光通量 <b>*</b></span><div className="input-unit"><input name="target_luminous_flux_lm" type="number" min="0.000001" step="any" required value={form.target_luminous_flux_lm} onChange={update}/><i>lm</i></div><small className="field-hint">不知道？点下方「不知道目标光通量？」估算器，按 LED 电流/颗数自动算出</small></label>
         <label className="required-dimension"><span>发光面长度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_length_mm" type="number" min="0.01" step="any" required value={form.target_luminous_length_mm} onChange={update}/><i>mm</i></div><small className="field-hint">填灯具出光口的长度（发光区域长度，不是灯体外形长度）</small></label>
         <label className="required-dimension"><span>发光面宽度 <b>* · 亮度计算必填</b></span><div className="input-unit"><input name="target_luminous_width_mm" type="number" min="0.01" step="any" required value={form.target_luminous_width_mm} onChange={update}/><i>mm</i></div><small className="field-hint">填灯具出光口的宽度（发光区域宽度）</small></label>
-        <FluxEstimator sourceFlux={form.source_luminous_flux_lm} targetPower={form.target_power_w} parsedInfo={upload.parsed_info} onApply={applyEstimate}/>
+        <FluxEstimator sourceFlux={form.source_luminous_flux_lm} targetPower={form.target_power_w} parsedInfo={upload.parsed_info} targetDims={{length:form.target_luminous_length_mm,width:form.target_luminous_width_mm}} onApply={applyEstimate}/>
         <label className="wide"><span>变更类型 <b>*</b></span><select name="change_type" value={form.change_type} onChange={update}>{Object.entries(CHANGES).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select><small className="field-hint">中风险选项可能影响近场均匀性，高风险选项会拦截生成（需重新实测）</small></label>
         <label className="wide"><span>配光对中校正</span><div className="check-field">
           <input type="checkbox" name="center_photometry" checked={!!form.center_photometry} onChange={event => setForm(current => ({ ...current, center_photometry: event.target.checked }))}/>
@@ -83,7 +81,7 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
         {reportError && <p className="inline-error" role="alert">{reportError}</p>}
       </div>
 
-      <ReportSupplementForm value={form.report_supplement} onChange={report_supplement => setForm(current => ({ ...current, report_supplement }))}/>
+      <ReportSupplementForm value={form.report_supplement} onChange={report_supplement => setForm(current => ({ ...current, report_supplement }))} luminousDims={{length:form.target_luminous_length_mm,width:form.target_luminous_width_mm}}/>
 
       <div className={`risk-preview ${risk.level}`} role="status" aria-live="polite"><span className="risk-dot" aria-hidden="true"/><div><strong>{risk.level === 'low' ? '低风险' : risk.level === 'medium' ? '中风险' : '高风险 · 禁止生成'}</strong><p>{risk.text}</p></div></div>
       <button type="button" className="button primary generate" onClick={onGenerate} disabled={loading || !risk.allow} aria-busy={loading}>{loading ? '正在生成 IES 与专业光度报告…' : risk.allow ? '生成估算 IES + 专业光度报告' : '该变更类型需要重新实测'}</button>
