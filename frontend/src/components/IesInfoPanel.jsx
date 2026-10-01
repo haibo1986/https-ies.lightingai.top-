@@ -12,7 +12,9 @@ export default function IesInfoPanel({upload}){
   if(!upload)return null
   const info={file_name:upload.file_name,...upload.parsed_info}
   const photometry=upload.photometry||{}
-  const totalFlux=info.suggested_source_luminous_flux_lm
+  const estimatedFlux=photometry.estimated_source_flux_lm!=null?Number(photometry.estimated_source_flux_lm):null
+  const totalFlux=info.suggested_source_luminous_flux_lm??estimatedFlux
+  const fluxEstimated=info.suggested_source_luminous_flux_lm==null&&estimatedFlux!=null
   const efficacy=totalFlux&&info.input_watts?totalFlux/info.input_watts:null
   const beams=photometry.beam_angles_50||[]
   const beam0=closestBeam(beams,0)
@@ -36,19 +38,20 @@ export default function IesInfoPanel({upload}){
   return <section className="card step-card appear">
     <div className="step-number complete">✓</div>
     <div className="card-content ies-analysis">
-      <div className="layer-heading summary-heading"><div><p className="eyebrow">01 / CORE SUMMARY</p><h2>IES 光度摘要</h2><p>第一层 · 影响选型与判断的核心结果</p></div><span className={`status-pill ${info.supports_auto_conversion?'success':'warning'}`}>{info.supports_auto_conversion?'可自动带入光通量':'需手动填写光通量'}</span></div>
+      <div className="layer-heading summary-heading"><div><p className="eyebrow">01 / CORE SUMMARY</p><h2>IES 光度摘要</h2><p>第一层 · 影响选型与判断的核心结果</p></div><span className={`status-pill ${info.supports_auto_conversion?'success':'warning'}`}>{info.supports_auto_conversion?'可自动带入光通量':fluxEstimated?'已用积分估算预填':'需手动填写光通量'}</span></div>
       <div className="summary-grid">
         <article><span>输入功率</span><strong>{number(info.input_watts)}<small> W</small></strong></article>
-        <article><span>灯具总光通量</span><strong>{number(totalFlux)}<small> lm</small></strong></article>
-        <article><span>光效</span><strong>{number(efficacy)}<small> lm/W</small></strong></article>
+        <article><span>灯具总光通量{fluxEstimated?'*':''}</span><strong>{number(totalFlux)}<small> lm</small></strong></article>
+        <article><span>光效{fluxEstimated?'*':''}</span><strong>{number(efficacy)}<small> lm/W</small></strong></article>
         <article><span>最大光强</span><strong>{number(info.max_candela)}<small> cd</small></strong></article>
         <article><span>最大光强方向</span><strong className="direction">{peak?`C${number(peak.c_angle,1)}° / γ${number(peak.gamma_angle,1)}°`:'—'}</strong></article>
       </div>
+      {fluxEstimated&&<p className="grid-footnote">* 该值由光强矩阵数值积分估算（文件未声明），仅供参考。</p>}
       <div className="key-conclusions">
         <article><div><span>50%光强光束角</span><small>按各平面峰值光强的50%定义</small></div><div className="conclusion-value"><strong>{beamText}</strong><small>{beamPlanes}</small></div></article>
         <article><div><span>配光类型</span><small>根据不同 C 平面的光强差异判断</small></div><strong className="distribution-badge">{distributionLabels[photometry.distribution_type]||'—'}</strong></article>
       </div>
-      {info.is_absolute_photometry&&<div className="notice warning">这是绝对光度文件，IES 中没有可直接使用的总光通量，请填写实测总光通量。</div>}
+      {info.is_absolute_photometry&&<div className="notice warning">这是绝对光度文件，IES 未声明总光通量。已按光强矩阵数值积分估算{fluxEstimated?`约 ${number(totalFlux)} lm`:'（但数据不足以积分）'}并预填表单，请与实测值核对后使用。</div>}
       {photometry.photometric_analysis_supported===false&&<div className="notice warning">该 IES 为非 Type C 光度坐标（Type B/A），角度范围不是 0-180/0-360。光通量缩放换算不受影响；光束角按 H≈0 垂直剖面 FWHM 计算，区域光通量等分析按 Type C 约定，仅供参考。</div>}
       <PhotometricChart photometry={photometry} totalLumens={info.suggested_source_luminous_flux_lm ?? (info.number_of_lamps>0&&info.lumens_per_lamp>0?info.number_of_lamps*info.lumens_per_lamp:null) ?? photometry.integrated_downward_flux_lm}/>
       <details className="raw-details">

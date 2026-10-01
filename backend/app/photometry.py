@@ -41,6 +41,46 @@ def _intensity_crossing_ascending(angles: list[float], values: list[float], frac
     return None
 
 
+def _trapz(values: list[float], steps: list[float]) -> float:
+    total = 0.0
+    for (left, right), step in zip(zip(values, values[1:]), steps):
+        total += (left + right) / 2 * step
+    return total
+
+
+def _integrate_absolute_flux_lm(parsed: dict[str, Any]) -> float | None:
+    """绝对光度文件（lumens_per_lamp=-1）的光通量估算：对 candela 矩阵做数值球面积分。
+
+    Type C：方位平均 × 2π × ∫ sin(γ) dγ（方位平均自动兼容 C 平面数量编码的对称性，
+    末位 360° 平面与 0° 重复不重复计；γ 范围取文件实际范围，通常为下半球）。
+    Type B/A：∫∫ cos(V) dV dH（Type B 覆盖前半球，Type A 覆盖全空间）。
+    """
+    multiplier = parsed["candela_multiplier"]
+    vertical = parsed["vertical_angles"]
+    horizontal = parsed["horizontal_angles"]
+    matrix = [[value * multiplier for value in row] for row in parsed["candela_values"]]
+    if len(vertical) < 2 or len(horizontal) < 2:
+        return None
+    if int(parsed.get("photometric_type", 1)) == 1:
+        rows = matrix
+        if abs(horizontal[-1] - horizontal[0] - 360) < 1e-6:
+            rows = rows[:-1]
+
+        def azimuth_average(index: int) -> float:
+            return sum(row[index] for row in rows) / len(rows) if rows else 0.0
+
+        gamma_steps = [math.radians(vertical[index + 1] - vertical[index]) for index in range(len(vertical) - 1)]
+        integrand = [azimuth_average(index) * math.sin(math.radians(gamma)) for index, gamma in enumerate(vertical)]
+        return 2 * math.pi * _trapz(integrand, gamma_steps)
+    h_steps = [math.radians(horizontal[index + 1] - horizontal[index]) for index in range(len(horizontal) - 1)]
+    v_steps = [math.radians(vertical[index + 1] - vertical[index]) for index in range(len(vertical) - 1)]
+    row_integrals = [
+        _trapz([value * math.cos(math.radians(gamma)) for gamma, value in zip(vertical, row)], v_steps)
+        for row in matrix
+    ]
+    return _trapz(row_integrals, h_steps)
+
+
 def _plane_summary(angles: list[float], values: list[float]) -> dict[str, float | None]:
     peak_index = max(range(len(values)), key=values.__getitem__)
     peak = values[peak_index]
@@ -221,7 +261,7 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
     for zone in zones:
         zone["percent"] = round(zone["flux_lm"] / total_integrated * 100, 2) if total_integrated else 0
 
-    return {
+    summary = {
         # Type C 专用配光分析（光束角/球面积分/等照度）仅对 Type C 有效；Type B/A 标记为不支持。
         "photometric_analysis_supported": int(parsed.get("photometric_type", 1)) == 1,
         "vertical_angles": vertical_angles,
@@ -238,3 +278,9 @@ def build_photometry_summary(parsed: dict[str, Any]) -> dict[str, Any]:
         "illuminance_cone": cone,
         "definition": "Beam and field angles are measured at 50% and 10% of peak intensity.",
     }
+    # 绝对光度文件不声明光通量：用光强矩阵数值积分给出估算值供界面预填与展示
+    if parsed.get("lumens_per_lamp") == -1:
+        estimate = _integrate_absolute_flux_lm(parsed)
+        summary["estimated_source_flux_lm"] = round(estimate, 1) if estimate else None
+        summary["estimated_source_flux_note"] = "由绝对光强矩阵数值积分估算，非文件声明值；请与实测总光通量核对。"
+    return summary

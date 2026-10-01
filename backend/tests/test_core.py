@@ -152,6 +152,31 @@ def test_parser_accepts_type_b_negative_angles(tmp_path: Path):
     assert summary["horizontal_range"] == [-90, 90]
 
 
+def test_absolute_photometry_estimates_flux_from_matrix(sample_path: Path, tmp_path: Path):
+    content = sample_path.read_text(encoding="utf-8").replace("1 1000 1 3 2", "1 -1 1 3 2")
+    path = tmp_path / "absolute.ies"
+    path.write_text(content, encoding="utf-8")
+    summary = build_photometry_summary(IESParser.parse(path))
+    # 方位平均 [90, 180, 45] cd，γ=0/45/90°：2π × trapz(avg·sinγ) ≈ 739.1 lm
+    assert summary["estimated_source_flux_lm"] == pytest.approx(739.1, abs=0.5)
+    assert "积分估算" in summary["estimated_source_flux_note"]
+    # 相对光度文件不产生该估算字段
+    relative = build_photometry_summary(IESParser.parse(sample_path))
+    assert "estimated_source_flux_lm" not in relative
+
+
+def test_type_b_absolute_flux_integrates_cos_v(tmp_path: Path):
+    lines = ["IESNA:LM-63-2002", "[TEST] const type b", "TILT=NONE",
+             "1 -1 1 3 3 2 2 0.1 0.2 0.3", "1 1 10",
+             "-90 0 90", "-90 0 90",
+             "100 100 100", "100 100 100", "100 100 100"]
+    path = tmp_path / "const-b.ies"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    summary = build_photometry_summary(IESParser.parse(path))
+    # trapz(cosV, ΔV=π/2 三点) = π/2；trapz(1, ΔH=π/2 三点) = π → 100 × π/2 × π ≈ 493.5 lm
+    assert summary["estimated_source_flux_lm"] == pytest.approx(493.5, abs=0.5)
+
+
 def test_parser_still_rejects_negative_angles_for_type_c(tmp_path: Path):
     content = type_b_ies_text().replace("5 2 2 0.1", "5 1 2 0.1")
     path = tmp_path / "type-c-negative.ies"

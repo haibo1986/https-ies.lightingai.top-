@@ -63,7 +63,7 @@ export default function App() {
     try {
       const data = await uploadIes(file)
       setUpload(data)
-      setForm({ ...EMPTY, ...loadLastForm(), source_luminous_flux_lm: data.parsed_info.suggested_source_luminous_flux_lm ?? '' })
+      setForm({ ...EMPTY, ...loadLastForm(), source_luminous_flux_lm: data.parsed_info.suggested_source_luminous_flux_lm ?? (data.photometry?.estimated_source_flux_lm != null ? String(Math.round(data.photometry.estimated_source_flux_lm)) : '') })
     } catch (reason) { setError(reason.message) }
     finally { setUploading(false) }
   }
