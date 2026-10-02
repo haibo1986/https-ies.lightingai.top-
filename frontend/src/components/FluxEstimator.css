@@ -2,3 +2,5 @@
 @media(max-width:760px){.estimator-workspace{grid-template-columns:1fr}.estimate-result{position:static}.scenario-grid{grid-template-columns:1fr}.more-scenarios{align-items:flex-start;flex-wrap:wrap}}
 @media(max-width:460px){.mini-grid{grid-template-columns:1fr}.estimator-trigger{align-items:flex-start;gap:10px}.estimator-trigger i{white-space:nowrap}}
 .save-model-row{display:flex;gap:8px;align-items:center;margin:8px 0 4px}.save-model-row input{flex:1;height:38px}.save-model-row .button{min-height:38px;padding:0 14px;font-size:12px}.model-message{display:block;margin-bottom:8px;font-size:11px;font-weight:400;color:var(--green)}.model-message.error{color:#b45309}
+
+.source-estimate{color:#ffe9b3;font-weight:600;margin-bottom:2px}.synced-note{color:var(--lime);font-size:11px;margin-top:10px;padding-top:10px;border-top:1px solid #284d41}
