@@ -249,8 +249,10 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     if ph.get("photometric_analysis_supported") is False:
         _reduced_pdf(c,data); c.save(); return str(output_path)
 
+    total_pages=classic_pdf_page_count(len(ph["vertical_angles"]),len(ph["planes"]))
+
     # 1 Summary, with the former image area replaced by two large plots.
-    _header(c,data,1,"灯具光度数据报告")
+    _header(c,data,1,"灯具光度数据报告",total=total_pages)
     _summary_block(c,17*mm,H-67*mm,"灯具属性",[("生产工厂",p["manufacturer"]),("灯具规格",p["model"]),("发光面长度",f"{p['luminous_length_mm']:.1f} mm"),("发光面宽度",f"{p['luminous_width_mm']:.1f} mm"),("相关色温",f"{p.get('cct_k') or '-'} K"),("显色指数",f"Ra {p.get('cri_ra') or '-'}")],82*mm)
     _summary_block(c,108*mm,H-67*mm,"电气参数",[("电压",f"{e.get('voltage_v') or '-'} V"),("电流",f"{e.get('current_a') or '-'} A"),("功率",f"{e['power_w']:.2f} W"),("功率因数",str(e.get('power_factor') or '-')),("光源光通量",f"{ph['target_flux_lm']:.2f} lm")],85*mm)
     _summary_block(c,17*mm,H-116*mm,"光度结果",[("灯具光通量",f"{ph['target_flux_lm']:.3f} lm"),("灯具光效",f"{ph['efficacy_lm_w']:.2f} lm/W"),("最大光强",f"{ph['max_candela_cd']:.2f} cd"),("最大光强角",f"C={ph['peak_direction']['c_angle']:g} Gamma={ph['peak_direction']['gamma_angle']:g}"),("中心光强",f"{ph['center_intensity']:.2f} cd"),("光束角",", ".join(str(b['beam_angle_50']) for b in ph['beam_angles_50'][:2])+" deg")],176*mm)
@@ -258,17 +260,17 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     _text(c,63*mm,38*mm,"极坐标配光曲线",7,MUTED,"center"); _text(c,150*mm,38*mm,"直角坐标配光曲线",7,MUTED,"center"); _finish(c,data)
 
     # 2 Combined intensity curves.
-    _header(c,data,2,"光强分布曲线"); _draw_polar_reference(c,ph,W/2,H-118*mm,50*mm); _draw_cart_reference(c,ph,38*mm,62*mm,135*mm,52*mm); _finish(c,data)
+    _header(c,data,2,"光强分布曲线",total=total_pages); _draw_polar_reference(c,ph,W/2,H-118*mm,50*mm); _draw_cart_reference(c,ph,38*mm,62*mm,135*mm,52*mm); _finish(c,data)
     # 3 Normalized cd/klm.
-    _header(c,data,3,"归一化光强分布曲线"); _draw_polar_reference(c,ph,W/2,H-143*mm,68*mm,normalized=True); _finish(c,data)
+    _header(c,data,3,"归一化光强分布曲线",total=total_pages); _draw_polar_reference(c,ph,W/2,H-143*mm,68*mm,normalized=True); _finish(c,data)
     # 4 Planar isolux.
-    _header(c,data,4,"平面等照度曲线"); _draw_planar_iso(c,data); _finish(c,data)
+    _header(c,data,4,"平面等照度曲线",total=total_pages); _draw_planar_iso(c,data); _finish(c,data)
 
     # 5 Luminance limitation.
-    _header(c,data,5,"亮度限制曲线"); _draw_luminance_limit(c,data); _finish(c,data)
+    _header(c,data,5,"亮度限制曲线",total=total_pages); _draw_luminance_limit(c,data); _finish(c,data)
 
     # 6 Distance cone.
-    _header(c,data,6,"照度距离曲线");engine=_engine(ph);x0,y0=W/2,53*mm;top=H-70*mm
+    _header(c,data,6,"照度距离曲线",total=total_pages);engine=_engine(ph);x0,y0=W/2,53*mm;top=H-70*mm
     beam=min((b for b in ph["beam_angles_50"] if b.get("beam_angle_50")),key=lambda b:abs(b["positive_c_angle"]),default=None)
     beam_angle=beam["beam_angle_50"] if beam else 0
     center=engine.intensity(0,0);peak=ph["max_candela_cd"]
@@ -287,10 +289,10 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     _text(c,W/2,43*mm,f"Beam angle: {beam_angle:.1f} deg (C0-C180)",6.2,MUTED,"center");_text(c,191*mm,43*mm,"Diameter",6.2,MUTED,"right")
     _finish(c,data)
     # 7 Spatial isolux.
-    _header(c,data,7,"空间等照度曲线"); _draw_planar_iso(c,data,spatial=True); _finish(c,data)
+    _header(c,data,7,"空间等照度曲线",total=total_pages); _draw_planar_iso(c,data,spatial=True); _finish(c,data)
 
     # 8 Zonal lumen table.
-    _header(c,data,8,"区域光通量表"); headers=("Gamma [deg]","Imean [cd]","Zonal Flux [lm]","Sum Flux [lm]","Zonal Flux [%]","Sum Flux [%]")
+    _header(c,data,8,"区域光通量表",total=total_pages); headers=("Gamma [deg]","Imean [cd]","Zonal Flux [lm]","Sum Flux [lm]","Zonal Flux [%]","Sum Flux [%]")
     positions=(22,53,85,118,151,184)
     for x,h in zip(positions,headers): _text(c,x*mm,H-68*mm,h,5.8,INK,"center")
     total=ph["integrated_downward_flux_lm"]
@@ -301,7 +303,7 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     _finish(c,data)
 
     # 9 Numeric quality audit; no invented utilization coefficients.
-    _header(c,data,9,"光度数据质量与计算校验")
+    _header(c,data,9,"光度数据质量与计算校验",total=total_pages)
     engine=_engine(ph);integrated=engine.integrated_flux();declared=ph["target_flux_lm"];error=abs(integrated-declared)/declared*100
     audits=[("IES声明光通量",f"{declared:.3f} lm"),("独立球面积分光通量",f"{integrated:.3f} lm"),("积分相对误差",f"{error:.3f}%"),("IES最大光强",f"{ph['max_candela_cd']:.3f} cd"),("插值引擎最大采样值",f"{max(engine.intensity(cg,g) for cg in range(360) for g in range(91)):.3f} cd"),("C0/G0采样核对",f"{engine.intensity(0,0):.3f} cd"),("C180/G0采样核对",f"{engine.intensity(180,0):.3f} cd"),("C90/G45采样核对",f"{engine.intensity(90,45):.3f} cd"),("发光面面积",f"{p['luminous_length_mm']*p['luminous_width_mm']/1_000_000:.6f} m²"),("结论","通过" if error<=1 else "需复核")]
     for i,(label,value) in enumerate(audits):
@@ -312,7 +314,6 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     angles=ph["vertical_angles"]; planes=ph["planes"]
     row_chunks=[list(range(i,min(i+TABLE_ROWS_PER_PAGE,len(angles)))) for i in range(0,len(angles),TABLE_ROWS_PER_PAGE)]
     plane_groups=[planes[i:i+TABLE_PLANES_PER_PAGE] for i in range(0,len(planes),TABLE_PLANES_PER_PAGE)]
-    total_pages=classic_pdf_page_count(len(angles),len(planes))
     page=10
     for indices in row_chunks:
         for group in plane_groups:
