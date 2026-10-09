@@ -57,7 +57,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("ies-tool")
 
-app = FastAPI(title="内部IES快速换算工具", version="1.2.0")
+app = FastAPI(title="内部IES快速换算工具", version="1.3.0")
 # 部署时如需跨源访问，通过环境变量指定来源，例如 IES_ALLOWED_ORIGINS="https://ies.example.com"。
 _allowed_origins = [origin.strip() for origin in os.getenv("IES_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_credentials=False, allow_methods=["GET", "POST"], allow_headers=["*"])
