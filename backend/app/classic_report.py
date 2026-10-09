@@ -304,7 +304,7 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     for i,height_m in enumerate(range(1,11)):
         yy=top-(i+1)*(top-y0)/10;width=(top-yy)/max(1,top-y0)*40*mm
         center_lux=center/height_m**2;max_lux=peak/height_m**2;diameter=2*height_m*math.tan(math.radians(beam_angle/2)) if beam_angle else 0
-        c.setFillColor(colors.yellow);c.setStrokeColor(INK);c.ellipse(x0-width*.72,yy-1.8*mm,x0+width*.72,yy+1.8*mm,fill=1,stroke=1)
+        c.setFillColor(colors.yellow);c.setStrokeColor(INK);c.ellipse(x0-width,yy-1.8*mm,x0+width,yy+1.8*mm,fill=1,stroke=1)
         _text(c,17*mm,yy+1.5*mm,f"{height_m*3.28084:.2f} ft",5.4)
         _text(c,43*mm,yy+1.5*mm,f"{center_lux*.092903:.2f}, {max_lux*.092903:.2f} fc",5.4)
         _text(c,17*mm,yy-2.4*mm,f"{height_m:.2f} m",5.4)
