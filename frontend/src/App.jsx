@@ -91,7 +91,7 @@ export default function App() {
       target_model: form.target_model,
       change_type: form.change_type,
       center_photometry: !!form.center_photometry,
-      report_supplement: Object.fromEntries(Object.entries(form.report_supplement || {}).filter(([key, value]) => value !== '' && key !== 'company_logo_name').map(([key,value]) => [key, ['voltage_v','current_a','power_factor','cct_k','cri_ra','fixture_length_mm','fixture_width_mm','fixture_height_mm','calculation_height_m','plane_extent_m'].includes(key) ? Number(value) : value])),
+      report_supplement: Object.fromEntries(Object.entries(form.report_supplement || {}).filter(([key, value]) => value !== '' && key !== 'company_logo_name').map(([key,value]) => [key, ['voltage_v','current_a','power_factor','cct_k','cri_ra','fixture_length_mm','fixture_width_mm','fixture_height_mm','calculation_height_m','plane_extent_m','test_distance_m','test_temperature_c'].includes(key) ? Number(value) : value])),
     }
     if (form.source_report_id) payload.source_report_id = form.source_report_id
     if (Object.keys(form.source_field_mapping || {}).length) payload.source_field_mapping = form.source_field_mapping

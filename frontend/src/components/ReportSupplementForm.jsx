@@ -26,6 +26,10 @@ const FIELD_GROUPS = [
     ['calculation_height_m','等照度计算高度','number','m','建议：洗墙灯 1–4m · 投光灯 3–25m · 路灯按杆高 6–12m（行业经验值）；仅影响报告等照度图，不影响 IES 数据'],
     ['plane_extent_m','平面计算半径','number','m','一般取计算高度的 3 倍左右；仅影响报告等照度图'],
   ]},
+  { title: '测试条件', tag: 'TEST', fields: [
+    ['test_distance_m','测试距离','number','m','光度测试距离，如 10.43'],
+    ['test_temperature_c','测试环境温度','number','℃','如 25'],
+  ]},
 ]
 
 export default function ReportSupplementForm({ value, onChange, luminousDims }) {

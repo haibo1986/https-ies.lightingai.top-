@@ -45,6 +45,7 @@ CUSTOMER_FIELD_NAMES = {
     "report_number", "report_date",
     "voltage_v", "current_a", "power_factor", "cct_k", "cri_ra",
     "fixture_length_mm", "fixture_width_mm", "fixture_height_mm", "calculation_height_m", "plane_extent_m",
+    "test_distance_m", "test_temperature_c",
 }
 MAX_SOURCE_REPORT_SIZE = 20 * 1024 * 1024
 FILE_RETENTION_SECONDS = 24 * 60 * 60
@@ -82,6 +83,8 @@ class ReportSupplement(BaseModel):
     fixture_height_mm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     calculation_height_m: float = Field(default=10, gt=0, le=100, allow_inf_nan=False)
     plane_extent_m: float = Field(default=20, gt=0, le=500, allow_inf_nan=False)
+    test_distance_m: float | None = Field(default=None, gt=0, le=1000, allow_inf_nan=False)
+    test_temperature_c: float | None = Field(default=None, gt=-100, le=300, allow_inf_nan=False)
     notes: str | None = Field(default=None, max_length=500)
 
 
