@@ -111,7 +111,7 @@ def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_pat
         ("照度距离中心值符合反平方定律", abs(engine.horizontal_illuminance(0,0,2*height)-raw_center_cd/(2*height)**2)<.001),
         ("PDF图表字段与参考表达完整", all(label in extracted for label in chart_labels)),
         ("报告光效计算一致", abs(ph["efficacy_lm_w"] - ph["target_flux_lm"] / data["electrical"]["power_w"]) < .001),
-        ("PDF页数与数据规模一致", len(reader.pages) == classic_pdf_page_count(len(ph["vertical_angles"]), len(ph["planes"]))),
+        ("PDF页数与数据规模一致", len(reader.pages) == classic_pdf_page_count(len(ph["vertical_angles"]), len(ph["planes"]), sampled=converted)),
         ("发光面尺寸有效", data["product"]["luminous_length_mm"] > 0 and data["product"]["luminous_width_mm"] > 0),
         ("PDF包含目标型号", data["product"]["model"] in extracted),
         ("PDF包含估算声明", "ESTIMATED" in extracted and "非实验室实测" in extracted),

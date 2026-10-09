@@ -269,6 +269,9 @@ def test_type_b_to_type_c_conversion_maps_peak_and_preserves_profile(tmp_path: P
     # 坐标网格
     assert len(converted["vertical_angles"]) == 37  # 0~90 步长 2.5
     assert len(converted["horizontal_angles"]) == 144  # 0~357.5 步长 2.5
+    # 转换报告数据表按 γ5°×C15° 抽样：37×144 全量表 24 页 → 抽样后 2 页，总页数 12
+    assert classic_pdf_page_count(37, 144, sampled=True) == 12
+    assert classic_pdf_page_count(37, 144) == 34
 
 
 def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):

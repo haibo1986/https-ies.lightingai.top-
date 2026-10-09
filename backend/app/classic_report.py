@@ -23,6 +23,10 @@ TOTAL_PAGES = 13
 # 数据表每页最多容纳 13 个平面列（A4 宽度下 13 列数字互不重叠）与 31 行。
 TABLE_PLANES_PER_PAGE = 13
 TABLE_ROWS_PER_PAGE = 31
+# 坐标转换报告的数据表抽样步长：图表与积分仍用精细网格，数据表按粗网格抽样打印，
+# 完整数据以 IES 文件为准（避免 73×73 等大矩阵占几十页）。
+TABLE_SAMPLE_GAMMA_STEP = 5.0
+TABLE_SAMPLE_C_STEP = 15.0
 
 
 def _table_dimensions(n_vertical: int, n_planes: int) -> tuple[int, int]:
@@ -31,8 +35,22 @@ def _table_dimensions(n_vertical: int, n_planes: int) -> tuple[int, int]:
     return row_pages, col_groups
 
 
-def classic_pdf_page_count(n_vertical: int, n_planes: int) -> int:
+def _sample_steps(n_vertical: int, n_planes: int) -> tuple[int, int]:
+    """转换报告数据表抽样：γ 网格步长 ≤5°、C 网格步长 ≤15° 时按整数倍抽稀。"""
+    dg = 90.0 / max(1, n_vertical - 1)   # 转换后 γ 网格恒为 0~90
+    dc = 360.0 / max(1, n_planes)        # 转换后 C 网格恒为 0~357.5
+    return max(1, round(TABLE_SAMPLE_GAMMA_STEP / dg)), max(1, round(TABLE_SAMPLE_C_STEP / dc))
+
+
+def _sampled_counts(n_vertical: int, n_planes: int) -> tuple[int, int]:
+    g_idx, c_idx = _sample_steps(n_vertical, n_planes)
+    return (n_vertical + g_idx - 1) // g_idx, (n_planes + c_idx - 1) // c_idx
+
+
+def classic_pdf_page_count(n_vertical: int, n_planes: int, sampled: bool = False) -> int:
     """经典版页数：9 页分析 + 数据表（行分页 × 列分组）+ 1 页声明。"""
+    if sampled:
+        n_vertical, n_planes = _sampled_counts(n_vertical, n_planes)
     row_pages, col_groups = _table_dimensions(n_vertical, n_planes)
     return 9 + row_pages * col_groups + 1
 
@@ -249,7 +267,8 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     if ph.get("photometric_analysis_supported") is False:
         _reduced_pdf(c,data); c.save(); return str(output_path)
 
-    total_pages=classic_pdf_page_count(len(ph["vertical_angles"]),len(ph["planes"]))
+    converted=data["conversion"].get("coordinate_conversion_note") is not None
+    total_pages=classic_pdf_page_count(len(ph["vertical_angles"]),len(ph["planes"]),sampled=converted)
 
     # 1 Summary, with the former image area replaced by two large plots.
     _header(c,data,1,"灯具光度数据报告",total=total_pages)
@@ -311,7 +330,11 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
     _text(c,25*mm,64*mm,"本页所有结果由统一插值引擎独立计算；报告不再输出未经标准验证的利用系数。",7,GREEN);_finish(c,data)
 
     # 10-N Full C-Gamma matrix：行按 31 行/页分页，列按每页最多 13 个平面分组，避免列数过多时数字互相重叠。
+    # 转换报告的数据表按粗网格抽样打印（图表与积分仍用精细网格），完整数据以 IES 文件为准。
     angles=ph["vertical_angles"]; planes=ph["planes"]
+    if converted:
+        g_idx,c_idx=_sample_steps(len(angles),len(planes))
+        angles=angles[::g_idx]; planes=planes[::c_idx]
     row_chunks=[list(range(i,min(i+TABLE_ROWS_PER_PAGE,len(angles)))) for i in range(0,len(angles),TABLE_ROWS_PER_PAGE)]
     plane_groups=[planes[i:i+TABLE_PLANES_PER_PAGE] for i in range(0,len(planes),TABLE_PLANES_PER_PAGE)]
     page=10
@@ -325,7 +348,10 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
                 yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"G{angles[i]:g}",5.2)
                 for j,plane in enumerate(group): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
                 if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
-            _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
+            _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right")
+            if converted:
+                _text(c,W-17*mm,38*mm,f"注：数据表按 γ{TABLE_SAMPLE_GAMMA_STEP:g}°×C{TABLE_SAMPLE_C_STEP:g}° 抽样展示，完整 {90/(len(ph['vertical_angles'])-1):g}° 网格数据以 IES 文件为准。",5.5,MUTED,"right")
+            _finish(c,data)
             page+=1
 
     # Traceability and statement.
