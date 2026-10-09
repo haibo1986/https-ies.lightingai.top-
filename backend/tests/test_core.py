@@ -243,6 +243,34 @@ def test_type_b_wide_table_splits_columns_into_groups(tmp_path: Path):
         assert len(headers) <= 13
 
 
+def test_type_b_to_type_c_conversion_maps_peak_and_preserves_profile(tmp_path: Path):
+    from app.type_conversion import convert_to_type_c
+    # 峰值在 (H=0, V=2.5) 的窄光束 Type B：转换后 Type C 峰值应在 (C≈0, γ≈2.5)
+    vertical = [i * 2.5 - 90 for i in range(73)]
+    horizontal = [i * 2.5 - 90 for i in range(73)]
+    lines = ["IESNA:LM-63-2002", "[TEST] narrow type b", "TILT=NONE",
+             f"1 1000 1 {len(vertical)} {len(horizontal)} 2 2 0.1 0.2 0.3", "1 1 21",
+             " ".join(str(v) for v in vertical), " ".join(str(h) for h in horizontal)]
+    for h in horizontal:
+        lines.append(" ".join(f"{30000 * math.exp(-(((v - 2.5) / 4.0) ** 2 + (h / 4.0) ** 2)):.3f}" for v in vertical))
+    path = tmp_path / "narrow-b.ies"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    parsed = IESParser.parse(path)
+    converted = convert_to_type_c(parsed)
+    assert converted["photometric_type"] == 1
+    summary = build_photometry_summary(converted)
+    peak = summary["peak_direction"]
+    assert peak["gamma_angle"] == 2.5  # 光轴方向从天底偏 2.5°
+    assert peak["c_angle"] == 0  # H=0 剖面映射到 C0 平面
+    assert peak["intensity"] == pytest.approx(30000, rel=0.02)  # 双线性插值峰值保持
+    assert summary["photometric_analysis_supported"] is True
+    assert summary["integrated_downward_flux_lm"] > 0
+    assert converted["conversion_note"].startswith("配光分析基于 Type 2")
+    # 坐标网格
+    assert len(converted["vertical_angles"]) == 37  # 0~90 步长 2.5
+    assert len(converted["horizontal_angles"]) == 144  # 0~357.5 步长 2.5
+
+
 def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):
     path = tmp_path / "type-b.ies"
     path.write_text(type_b_ies_text(), encoding="utf-8")

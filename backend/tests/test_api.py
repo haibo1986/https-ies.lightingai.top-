@@ -108,7 +108,7 @@ def test_source_pdf_is_preserved_and_linked_to_estimated_report(sample_path: Pat
     record["path"].unlink(missing_ok=True)
 
 
-def test_upload_accepts_type_b_and_generates_simplified_report(tmp_path: Path):
+def test_upload_accepts_type_b_and_generates_classic_report_via_conversion(tmp_path: Path):
     path = tmp_path / "type-b.ies"
     path.write_text(type_b_ies_text(), encoding="utf-8")
     with path.open("rb") as file:
@@ -116,7 +116,7 @@ def test_upload_accepts_type_b_and_generates_simplified_report(tmp_path: Path):
     assert response.status_code == 200
     body = response.json()
     assert body["parsed_info"]["photometric_type"] == 2
-    assert body["photometry"]["photometric_analysis_supported"] is False
+    assert body["photometry"]["photometric_analysis_supported"] is False  # 上传层仍按 Type B 标记
     generated = client.post("/api/generate", json={
         "uploaded_file_id": body["uploaded_file_id"], "source_luminous_flux_lm": 1900,
         "target_luminous_flux_lm": 2100, "target_model": "TypeB/21W",
@@ -125,8 +125,11 @@ def test_upload_accepts_type_b_and_generates_simplified_report(tmp_path: Path):
     assert generated.status_code == 200
     result = generated.json()
     assert result["pdf_report_file"]
-    assert result["ies_preview"]["validation_passed"] is True
-    assert len(result["ies_preview"]["validation"]) == 11
+    assert result["ies_preview"]["validation_passed"] is False  # 合成文件光通量与矩阵不一致，积分校验如实失败
+    assert len(result["ies_preview"]["validation"]) == 22  # 经典报告全量校验
+    # 转换后 Type C 网格：γ 0~90 步长15=7点 × C 0~315 步长45=8点 → 9+1+1=11 页
+    pages = __import__("pypdf").PdfReader(OUTPUT_DIR / result["pdf_report_file"]).pages
+    assert len(pages) == classic_pdf_page_count(7, 8) == 11
     cleanup_result(result)
 
 

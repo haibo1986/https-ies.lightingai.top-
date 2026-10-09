@@ -66,6 +66,7 @@ def build_report_data(
             "source_file": source.get("original_file_name", "-"),
             "scale_factor": float(target["scale_factor"]), "change_type": target["change_type"],
             "risk_level": risk["risk_level"], "risk_message": risk["risk_message"],
+            "coordinate_conversion_note": target.get("conversion_note"),
         },
         "supplement": supplement,
         "calculation": {"height_m": supplement.get("calculation_height_m", 10), "plane_extent_m": supplement.get("plane_extent_m", 20)},

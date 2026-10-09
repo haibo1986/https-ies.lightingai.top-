@@ -339,8 +339,11 @@ def _statement_body(c: canvas.Canvas, data: dict[str, Any]) -> None:
     for i,(label,value) in enumerate(rows):
         y=H-(75+i*12)*mm;_text(c,25*mm,y,label,7,MUTED);_text(c,78*mm,y,value,7.5);c.setStrokeColor(LINE);c.line(22*mm,y-3*mm,W-22*mm,y-3*mm)
     _text(c,22*mm,98*mm,"工程限制",10)
-    for i,line in enumerate((data['conversion']['risk_message'],"本报告假设配光形状不变，仅按目标光通量同比缩放绝对光强。","透镜、光学结构、安装方式或 LED 排布变化时，应重新进行光度实测。","正式认证、招投标和验收不得使用本报告替代实验室报告。")): _text(c,27*mm,(86-i*10)*mm,f"• {line}",7.5)
-    _text(c,22*mm,42*mm,data['disclaimer'],8,GREEN)
+    limits=[data['conversion']['risk_message'],"本报告假设配光形状不变，仅按目标光通量同比缩放绝对光强。","透镜、光学结构、安装方式或 LED 排布变化时，应重新进行光度实测。","正式认证、招投标和验收不得使用本报告替代实验室报告。"]
+    note=data['conversion'].get("coordinate_conversion_note")
+    if note: limits.insert(1,note)
+    for i,line in enumerate(limits): _text(c,27*mm,(86-i*10)*mm,f"• {line}",7.5)
+    _text(c,22*mm,(42 if len(limits)==4 else 36)*mm,data['disclaimer'],8,GREEN)
 
 
 def _reduced_pdf(c: canvas.Canvas, data: dict[str, Any]) -> None:

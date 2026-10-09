@@ -27,6 +27,7 @@ from .classic_report import generate_classic_pdf
 from .pdf_template import generate_from_source_template
 from .standard_report import validate_standard_report
 from .photometry_center import center_photometry
+from .type_conversion import convert_to_type_c
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -279,13 +280,19 @@ def generate_ies(payload: GenerateRequest) -> dict[str, Any]:
     if payload.center_photometry:
         try:scaled=center_photometry(scaled)
         except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    # 非 Type C 文件：报告配光分析基于 Type B/A → Type C 球面重采样；输出 IES 保持原坐标。
+    # 转换不可行（角度覆盖不全）时回退简化版报告（无 Type C 专用图表）。
+    report_target=scaled
+    if int(scaled.get("photometric_type",1))!=1:
+        try:report_target=convert_to_type_c(scaled)
+        except ValueError:pass
     stem=sanitize_file_stem(payload.target_model)
     try:ies_path,md_path,html_path,pdf_path=reserve_output_paths(stem)
     except OSError as exc:raise HTTPException(status_code=500,detail="无法创建输出文件，请检查磁盘空间和目录权限。") from exc
     temp_paths=(OUTPUT_DIR/f".{uuid.uuid4().hex}.ies.tmp",OUTPUT_DIR/f".{uuid.uuid4().hex}.md.tmp",OUTPUT_DIR/f".{uuid.uuid4().hex}.html.tmp",OUTPUT_DIR/f".{uuid.uuid4().hex}.pdf.tmp")
     try:
         IESWriter.write(scaled,temp_paths[0]);ReportGenerator.generate_all(record["parsed"],scaled,risk,temp_paths[1],temp_paths[2],temp_paths[3],source_report)
-        report_data=build_report_data(record["parsed"],scaled,risk,payload.report_supplement.model_dump())
+        report_data=build_report_data(record["parsed"],report_target,risk,payload.report_supplement.model_dump())
         generate_classic_pdf(report_data,temp_paths[3])
         for source,target in zip(temp_paths,(ies_path,md_path,html_path,pdf_path)):os.replace(source,target)
     except Exception as exc:
