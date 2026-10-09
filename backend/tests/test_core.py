@@ -9,7 +9,7 @@ from app.ies_writer import IESWriter, sanitize_file_stem
 from app.photometry import build_photometry_summary
 from app.report_generator import ReportGenerator
 from app.report_model import build_report_data
-from app.classic_report import REDUCED_PAGE_COUNT, generate_classic_pdf
+from app.classic_report import classic_pdf_page_count, generate_classic_pdf, reduced_pdf_page_count
 from app.standard_report import validate_standard_report
 from app.risk_rules import evaluate_risk
 from app.photometry_center import center_photometry
@@ -215,6 +215,34 @@ def test_type_b_beam_angle_and_symmetry_from_principal_plane(tmp_path: Path):
     assert summary["distribution_type"] == "rotational_symmetric"
 
 
+def test_type_b_wide_table_splits_columns_into_groups(tmp_path: Path):
+    # 25 个水平平面的 Type B 文件：数据表必须按每页 ≤13 列分组（否则数字重叠乱码）
+    vertical = list(range(-90, 91, 45))
+    horizontal = [i * 7.5 - 90 for i in range(25)]  # -90 ~ 90 共 25 个平面
+    lines = ["IESNA:LM-63-2002", "[TEST] wide type b", "TILT=NONE",
+             f"1 1000 1 {len(vertical)} {len(horizontal)} 2 2 0.1 0.2 0.3", "1 1 21",
+             " ".join(str(v) for v in vertical), " ".join(str(h) for h in horizontal)]
+    for h in horizontal:
+        lines.append(" ".join(f"{200 * math.exp(-((v / 25) ** 2)):.1f}" for v in vertical))
+    path = tmp_path / "wide-b.ies"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    parsed = IESParser.parse(path)
+    parsed["original_file_name"] = "wide-b.ies"
+    scaled = IESScaler.scale(parsed, 1000, 1200, "Wide-B", 25, "power_only")
+    data = build_report_data(parsed, scaled, evaluate_risk("power_only"), {})
+    pdf_path = tmp_path / "wide.pdf"
+    generate_classic_pdf(data, pdf_path)
+    pages = __import__("pypdf").PdfReader(pdf_path).pages
+    # 1 行页 × 2 列组（13+12）→ 2 页数据表 + 摘要 + 声明 = 4 页
+    assert len(pages) == reduced_pdf_page_count(len(scaled["vertical_angles"]), len(scaled["horizontal_angles"])) == 4
+    # 每个数据表页的表头行最多 13 个列头（不含左侧行标签）
+    for page in pages[1:-1]:
+        text = page.extract_text() or ""
+        header_line = next((line for line in text.splitlines() if "角度" in line), "")
+        headers = [tok for tok in header_line.split(" ") if tok.endswith("°")]
+        assert len(headers) <= 13
+
+
 def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):
     path = tmp_path / "type-b.ies"
     path.write_text(type_b_ies_text(), encoding="utf-8")
@@ -228,7 +256,7 @@ def test_type_b_full_chain_generates_simplified_report(tmp_path: Path):
     ies_path, pdf_path = tmp_path / "out.ies", tmp_path / "report.pdf"
     IESWriter.write(scaled, ies_path)
     generate_classic_pdf(data, pdf_path)
-    assert len(__import__("pypdf").PdfReader(pdf_path).pages) == REDUCED_PAGE_COUNT
+    assert len(__import__("pypdf").PdfReader(pdf_path).pages) == reduced_pdf_page_count(len(scaled["vertical_angles"]), len(scaled["horizontal_angles"]))
     checks = validate_standard_report(data, ies_path, pdf_path)
     assert all(item["ok"] for item in checks)
     assert any("非TypeC" in item["label"] for item in checks)
@@ -525,7 +553,7 @@ def test_standard_report_model_pdf_and_validation(sample_path: Path, tmp_path: P
     ies_path, pdf_path = tmp_path / "out.ies", tmp_path / "report.pdf"
     IESWriter.write(scaled, ies_path)
     generate_classic_pdf(data, pdf_path)
-    assert len(__import__("pypdf").PdfReader(pdf_path).pages) == 13
+    assert len(__import__("pypdf").PdfReader(pdf_path).pages) == classic_pdf_page_count(len(scaled["vertical_angles"]), len(scaled["horizontal_angles"]))
     assert data["electrical"]["voltage_v"] == 24
     checks = validate_standard_report(data, ies_path, pdf_path)
     assert len(checks) == 22

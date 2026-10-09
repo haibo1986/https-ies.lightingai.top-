@@ -11,6 +11,7 @@ from app import main
 from app.main import OUTPUT_DIR, SOURCE_REPORTS, UPLOADS, app
 from app.ies_parser import IESParser
 from app.photometry import build_photometry_summary
+from app.classic_report import classic_pdf_page_count
 from test_core import tilted_ies_text, type_b_ies_text
 
 
@@ -98,7 +99,7 @@ def test_source_pdf_is_preserved_and_linked_to_estimated_report(sample_path: Pat
     assert result["template_pdf_file"] == "Linked_report_原版式报告.pdf"
     assert client.get(result["template_pdf_url"]).content.startswith(b"%PDF-")
     assert result["report_schema_version"] == "1.0"
-    assert len(__import__("pypdf").PdfReader(OUTPUT_DIR / result["pdf_report_file"]).pages) == 13
+    assert len(__import__("pypdf").PdfReader(OUTPUT_DIR / result["pdf_report_file"]).pages) == classic_pdf_page_count(3, 2)  # minimal.ies: 3 垂直角 × 2 平面
     assert result["ies_file"] == "Linked_report.ies"
     assert result["pdf_report_file"] == "Linked_report_方案光度报告.pdf"
     assert "光度数据报告" in (OUTPUT_DIR / result["html_report_file"]).read_text(encoding="utf-8")

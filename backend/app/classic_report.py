@@ -20,8 +20,27 @@ RED = colors.HexColor("#e11b22")
 BLUE = colors.HexColor("#1547ff")
 GREEN = colors.HexColor("#147a51")
 TOTAL_PAGES = 13
-# 非 Type C 简化版 PDF：摘要+提示 1 页、原始光强数据表 3 页、声明 1 页。
-REDUCED_PAGE_COUNT = 5
+# 数据表每页最多容纳 13 个平面列（A4 宽度下 13 列数字互不重叠）与 31 行。
+TABLE_PLANES_PER_PAGE = 13
+TABLE_ROWS_PER_PAGE = 31
+
+
+def _table_dimensions(n_vertical: int, n_planes: int) -> tuple[int, int]:
+    row_pages = max(1, (n_vertical + TABLE_ROWS_PER_PAGE - 1) // TABLE_ROWS_PER_PAGE)
+    col_groups = max(1, (n_planes + TABLE_PLANES_PER_PAGE - 1) // TABLE_PLANES_PER_PAGE)
+    return row_pages, col_groups
+
+
+def classic_pdf_page_count(n_vertical: int, n_planes: int) -> int:
+    """经典版页数：9 页分析 + 数据表（行分页 × 列分组）+ 1 页声明。"""
+    row_pages, col_groups = _table_dimensions(n_vertical, n_planes)
+    return 9 + row_pages * col_groups + 1
+
+
+def reduced_pdf_page_count(n_vertical: int, n_planes: int) -> int:
+    """简化版（非 Type C）页数：1 页摘要 + 数据表（行分页 × 列分组）+ 1 页声明。"""
+    row_pages, col_groups = _table_dimensions(n_vertical, n_planes)
+    return 1 + row_pages * col_groups + 1
 
 
 def _engine(ph: dict[str, Any]) -> PhotometricEngine:
@@ -289,23 +308,27 @@ def generate_classic_pdf(data: dict[str, Any], output_path: str | Path) -> str:
         yy=H-(75+i*13)*mm;_text(c,28*mm,yy,label,7,MUTED);_text(c,102*mm,yy,value,8);c.setStrokeColor(LINE);c.line(25*mm,yy-3*mm,W-25*mm,yy-3*mm)
     _text(c,25*mm,64*mm,"本页所有结果由统一插值引擎独立计算；报告不再输出未经标准验证的利用系数。",7,GREEN);_finish(c,data)
 
-    # 10-12 Full C-Gamma matrix, 31 vertical angles per page.
+    # 10-N Full C-Gamma matrix：行按 31 行/页分页，列按每页最多 13 个平面分组，避免列数过多时数字互相重叠。
     angles=ph["vertical_angles"]; planes=ph["planes"]
-    chunks=[list(range(i,min(i+31,len(angles)))) for i in range(0,len(angles),31)]
-    while len(chunks)<3: chunks.append([])
-    for page,indices in enumerate(chunks[:3],start=10):
-        _header(c,data,page,"C-Gamma 完整光强数据表")
-        table_x=17*mm; col=(W-34*mm)/(len(planes)+1); y=H-68*mm
-        _text(c,table_x,y,"G/C",5.5)
-        for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,y,f"C{plane['c_angle']:g}",5.3,INK,"right")
-        for r,i in enumerate(indices):
-            yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"G{angles[i]:g}",5.2)
-            for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
-            if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
-        _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
+    row_chunks=[list(range(i,min(i+TABLE_ROWS_PER_PAGE,len(angles)))) for i in range(0,len(angles),TABLE_ROWS_PER_PAGE)]
+    plane_groups=[planes[i:i+TABLE_PLANES_PER_PAGE] for i in range(0,len(planes),TABLE_PLANES_PER_PAGE)]
+    total_pages=classic_pdf_page_count(len(angles),len(planes))
+    page=10
+    for indices in row_chunks:
+        for group in plane_groups:
+            _header(c,data,page,"C-Gamma 完整光强数据表",total=total_pages)
+            table_x=17*mm; col=(W-34*mm)/(len(group)+1); y=H-68*mm
+            _text(c,table_x,y,"G/C",5.5)
+            for j,plane in enumerate(group): _text(c,table_x+(j+1)*col,y,f"C{plane['c_angle']:g}",5.3,INK,"right")
+            for r,i in enumerate(indices):
+                yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"G{angles[i]:g}",5.2)
+                for j,plane in enumerate(group): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
+                if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
+            _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
+            page+=1
 
-    # 13 Traceability and statement.
-    _header(c,data,13,"换算依据与使用声明")
+    # Traceability and statement.
+    _header(c,data,page,"换算依据与使用声明",total=total_pages)
     _statement_body(c,data); _finish(c,data)
     c.save(); return str(output_path)
 
@@ -324,8 +347,12 @@ def _reduced_pdf(c: canvas.Canvas, data: dict[str, Any]) -> None:
     """非 Type C 简化版 PDF：不含 Type C 专用配光分析图表，仅保留参数摘要、原始光强数据表与使用声明。"""
     p, e, ph = data["product"], data["electrical"], data["photometric"]
     ptype = int(ph.get("photometric_type", 1))
+    angles=ph["vertical_angles"]; planes=ph["planes"]
+    row_chunks=[list(range(i,min(i+TABLE_ROWS_PER_PAGE,len(angles)))) for i in range(0,len(angles),TABLE_ROWS_PER_PAGE)]
+    plane_groups=[planes[i:i+TABLE_PLANES_PER_PAGE] for i in range(0,len(planes),TABLE_PLANES_PER_PAGE)]
+    total_pages=reduced_pdf_page_count(len(angles),len(planes))
     # 1 参数摘要 + 醒目提示。
-    _header(c, data, 1, "灯具光度数据报告", total=REDUCED_PAGE_COUNT)
+    _header(c, data, 1, "灯具光度数据报告", total=total_pages)
     _summary_block(c,17*mm,H-67*mm,"灯具属性",[("生产工厂",p["manufacturer"]),("灯具规格",p["model"]),("发光面长度",f"{p['luminous_length_mm']:.1f} mm"),("发光面宽度",f"{p['luminous_width_mm']:.1f} mm"),("相关色温",f"{p.get('cct_k') or '-'} K"),("显色指数",f"Ra {p.get('cri_ra') or '-'}")],82*mm)
     _summary_block(c,108*mm,H-67*mm,"电气参数",[("电压",f"{e.get('voltage_v') or '-'} V"),("电流",f"{e.get('current_a') or '-'} A"),("功率",f"{e['power_w']:.2f} W"),("功率因数",str(e.get('power_factor') or '-')),("光源光通量",f"{ph['target_flux_lm']:.2f} lm")],85*mm)
     _summary_block(c,17*mm,H-116*mm,"光度结果",[("灯具光通量",f"{ph['target_flux_lm']:.3f} lm"),("灯具光效",f"{ph['efficacy_lm_w']:.2f} lm/W"),("最大光强",f"{ph['max_candela_cd']:.2f} cd"),("发光面面积",f"{p['luminous_length_mm']*p['luminous_width_mm']/1_000_000:.6f} m²")],176*mm)
@@ -334,20 +361,20 @@ def _reduced_pdf(c: canvas.Canvas, data: dict[str, Any]) -> None:
     for i,line in enumerate(("其角度范围不是 Type C 的 0-180°（垂直）/ 0-360°（水平）约定。","本简化版报告不包含极坐标/直角坐标配光曲线、光束角、等照度、亮度限制与区域光通量等 Type C 专用配光分析。","光通量缩放换算与原始光强数据表准确有效；如需该光度类型的正式配光分析，请提供 Type C 实测文件或另行坐标转换。","本报告为 ESTIMATED 估算结果，不可用于认证、验收或第三方检测结论。")):
         _text(c,22*mm,(106-i*10)*mm,f"• {line}",7.5)
     _finish(c,data)
-    # 2-4 原始光强数据表（与经典版同构，3 页固定）。
-    angles=ph["vertical_angles"]; planes=ph["planes"]
-    chunks=[list(range(i,min(i+31,len(angles)))) for i in range(0,len(angles),31)]
-    while len(chunks)<3: chunks.append([])
-    for page,indices in enumerate(chunks[:3],start=2):
-        _header(c,data,page,"原始光强数据表",total=REDUCED_PAGE_COUNT)
-        table_x=17*mm; col=(W-34*mm)/(len(planes)+1); y=H-68*mm
-        _text(c,table_x,y,"角度",5.5)
-        for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,y,f"{plane['c_angle']:g}°",5.3,INK,"right")
-        for r,i in enumerate(indices):
-            yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"{angles[i]:g}°",5.2)
-            for j,plane in enumerate(planes): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
-            if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
-        _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
-    # 5 换算依据与使用声明。
-    _header(c,data,5,"换算依据与使用声明",total=REDUCED_PAGE_COUNT)
+    # 2-N 原始光强数据表：行按 31 行/页分页，列按每页最多 13 个平面分组，避免列数过多时数字互相重叠。
+    page=2
+    for indices in row_chunks:
+        for group in plane_groups:
+            _header(c,data,page,"原始光强数据表",total=total_pages)
+            table_x=17*mm; col=(W-34*mm)/(len(group)+1); y=H-68*mm
+            _text(c,table_x,y,"角度",5.5)
+            for j,plane in enumerate(group): _text(c,table_x+(j+1)*col,y,f"{plane['c_angle']:g}°",5.3,INK,"right")
+            for r,i in enumerate(indices):
+                yy=y-(r+1)*6.05*mm; _text(c,table_x,yy,f"{angles[i]:g}°",5.2)
+                for j,plane in enumerate(group): _text(c,table_x+(j+1)*col,yy,f"{plane['candela'][i]:.1f}",4.8,INK,"right")
+                if r%2==0: c.setStrokeColor(colors.HexColor("#eeeeee"));c.line(table_x,yy-1.5*mm,W-17*mm,yy-1.5*mm)
+            _text(c,W-17*mm,43*mm,"Unit: cd",6,MUTED,"right"); _finish(c,data)
+            page+=1
+    # 末页：换算依据与使用声明。
+    _header(c,data,page,"换算依据与使用声明",total=total_pages)
     _statement_body(c,data); _finish(c,data)

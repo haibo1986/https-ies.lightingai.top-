@@ -65,7 +65,7 @@ export default function TargetForm({ form, setForm, onGenerate, loading, upload,
       {form.target_luminous_length_mm && form.target_luminous_width_mm && <div className="dimension-preview"><b>发光面积与亮度计算</b><span>{form.target_luminous_length_mm} × {form.target_luminous_width_mm} mm · 面积 {(Number(form.target_luminous_length_mm)*Number(form.target_luminous_width_mm)/1000000).toFixed(4)} m²</span></div>}
 
       <div className="source-report-box">
-        <div><strong>原始光度测试 PDF（可选溯源附件）</strong><p>原文件不会被修改，不传也不影响生成。标准 13 页报告始终由目标 IES 统一生成；识别成功的原版式文件还可额外生成一份覆盖估算数据的原版式报告。</p></div>
+        <div><strong>原始光度测试 PDF（可选溯源附件）</strong><p>原文件不会被修改，不传也不影响生成。标准版专业报告始终由目标 IES 统一生成（页数随数据规模自适应）；识别成功的原版式文件还可额外生成一份覆盖估算数据的原版式报告。</p></div>
         <label className="button secondary source-report-button">
           {reportUploading ? '正在上传…' : form.source_report_id ? '更换 PDF' : '上传原始 PDF'}
           <input type="file" accept="application/pdf,.pdf" onChange={addSourceReport} disabled={reportUploading}/>

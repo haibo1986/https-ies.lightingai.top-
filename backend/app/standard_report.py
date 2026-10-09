@@ -52,7 +52,7 @@ def _text(c: canvas.Canvas, x: float, y: float, value: Any, size=9, color=INK, a
 def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_path: str | Path) -> list[dict[str, Any]]:
     from .ies_parser import IESParser
     from .photometric_engine import PhotometricEngine, contour_segments
-    from .classic_report import REDUCED_PAGE_COUNT
+    from .classic_report import classic_pdf_page_count, reduced_pdf_page_count
     parsed = IESParser.parse(ies_path)
     # 独立数据源：直接从 IES 文件原文读取中心光强，与报告引擎的计算互验
     raw_center_cd = parsed["candela_values"][0][0] * parsed["candela_multiplier"]
@@ -67,7 +67,7 @@ def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_pat
             ("IES与报告目标功率一致", abs(parsed["input_watts"] - data["electrical"]["power_w"]) < .001),
             ("IES与报告最大光强一致", abs(parsed["max_candela"] - ph["max_candela_cd"]) < .02),
             ("非TypeC配光分析已按不支持标记", ph.get("photometric_analysis_supported") is False),
-            ("PDF为简化版式页数", len(reader.pages) == REDUCED_PAGE_COUNT),
+            ("PDF为简化版式页数", len(reader.pages) == reduced_pdf_page_count(len(ph["vertical_angles"]), len(ph["planes"]))),
             ("发光面尺寸有效", data["product"]["luminous_length_mm"] > 0 and data["product"]["luminous_width_mm"] > 0),
             ("PDF包含目标型号", data["product"]["model"] in extracted),
             ("PDF包含估算声明", "ESTIMATED" in extracted and "非实验室实测" in extracted),
@@ -105,7 +105,7 @@ def validate_standard_report(data: dict[str, Any], ies_path: str | Path, pdf_pat
         ("照度距离中心值符合反平方定律", abs(engine.horizontal_illuminance(0,0,2*height)-raw_center_cd/(2*height)**2)<.001),
         ("PDF图表字段与参考表达完整", all(label in extracted for label in chart_labels)),
         ("报告光效计算一致", abs(ph["efficacy_lm_w"] - ph["target_flux_lm"] / data["electrical"]["power_w"]) < .001),
-        ("PDF专业报告为13页", len(reader.pages) == 13),
+        ("PDF页数与数据规模一致", len(reader.pages) == classic_pdf_page_count(len(ph["vertical_angles"]), len(ph["planes"]))),
         ("发光面尺寸有效", data["product"]["luminous_length_mm"] > 0 and data["product"]["luminous_width_mm"] > 0),
         ("PDF包含目标型号", data["product"]["model"] in extracted),
         ("PDF包含估算声明", "ESTIMATED" in extracted and "非实验室实测" in extracted),
