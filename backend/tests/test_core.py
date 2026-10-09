@@ -363,6 +363,30 @@ def test_writer_and_report_include_disclaimer(sample_path: Path, tmp_path: Path)
     assert sanitize_file_stem(' A/B:*? ') == "A_B___"
 
 
+def test_center_photometry_aligns_type_b_peak_to_zero(tmp_path: Path):
+    # 峰值在 γ=15° 的 Type B 合成文件：对中后峰值落到 γ=0，各平面形状与光束角保持
+    vertical = list(range(-90, 91, 15))
+    horizontal = [-90, -45, 0, 45, 90]
+    lines = ["IESNA:LM-63-2002", "[TEST] tilted type b", "TILT=NONE",
+             f"1 1900 1 {len(vertical)} {len(horizontal)} 2 2 0.1 0.2 0.3", "1 1 21",
+             " ".join(str(v) for v in vertical), " ".join(str(h) for h in horizontal)]
+    for h in horizontal:
+        factor = 0.7 + 0.3 * (1 - abs(h) / 90)
+        lines.append(" ".join(f"{200 * factor * math.exp(-(((v - 15) / 20) ** 2)):.3f}" for v in vertical))
+    path = tmp_path / "tilted-b.ies"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    parsed = IESParser.parse(path)
+    before = build_photometry_summary(parsed)
+    assert before["peak_direction"]["gamma_angle"] == 15
+    centered = center_photometry(parsed)
+    after = build_photometry_summary(centered)
+    assert after["peak_direction"]["gamma_angle"] == 0
+    assert after["peak_direction"]["c_angle"] == 0
+    assert after["beam_angles_50"][0]["beam_angle_50"] == pytest.approx(before["beam_angles_50"][0]["beam_angle_50"], abs=0.05)
+    assert centered["centering"]["original_peak_gamma_angle"] == 15
+    assert centered["centering"]["flux_compensation_factor"] > 1
+
+
 def test_center_photometry_aligns_peak_to_nadir(tmp_path: Path):
     parsed = _parse_tilted(tmp_path)
     scaled = IESScaler.scale(parsed, 1000, 1500, "Tilted", 36, "power_only")

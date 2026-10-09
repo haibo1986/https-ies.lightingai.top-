@@ -1,10 +1,11 @@
-"""配光对中校正（逐平面平移版）：每条 C 平面曲线按自身峰值 γ 偏移整体平移，
-使峰值对准 γ=0°。曲线形状与各平面光束角严格不变。
+"""配光对中校正（逐平面平移版）：每个水平平面的垂直剖面曲线按自身峰值角度
+整体平移，使峰值对准 γ=0°。曲线形状与各平面光束角严格不变。
 
 适用于「灯具本身非偏光设计、但实测时未完全居中导致配光曲线偏移」的场景。
-算法：对每个 C 平面，在 γ≤90° 内找该平面的峰值方向 γ_peak，把该平面曲线
-沿 γ 轴平移 −γ_peak（新 γ' = 原 γ − γ_peak），峰值即落在 γ=0。平移后
-γ' + γ_peak 超出原垂直角范围的方向填 0（原数据中没有的信息不虚构）。
+算法：对每个水平平面（Type C 的 C 平面 / Type B/A 的 H 平面），在 γ≤90° 内找
+该平面的峰值方向 γ_peak，把该平面曲线沿 γ 轴平移 −γ_peak（新 γ' = 原 γ − γ_peak），
+峰值即落在 γ=0。平移后 γ' + γ_peak 超出原垂直角范围的方向填 0（原数据中没有的
+信息不虚构）。
 """
 
 from __future__ import annotations
@@ -46,9 +47,9 @@ def _plane_peak_gamma(vertical_angles: list[float], row: list[float]) -> tuple[i
 
 
 def center_photometry(data: dict[str, Any]) -> dict[str, Any]:
-    """对中校正：返回 deepcopy 后的新 dict，各 C 平面曲线已平移至峰值对准 γ=0。"""
-    if int(data.get("photometric_type", 1)) != 1:
-        raise ValueError("对中校正仅支持 LM-63 Type C 光度坐标，Type B/A 文件请勿启用该选项。")
+    """对中校正：返回 deepcopy 后的新 dict，各平面（Type C 的 C 平面 / Type B/A 的 H 平面）
+    曲线已平移至峰值对准 γ=0。算法对三种光度坐标通用：每个水平平面的垂直剖面按自身
+    峰值平移，越界方向填 0，并按平移前后积分光通量比做等比补偿。"""
     vertical_angles = data.get("vertical_angles") or []
     candela_values = data.get("candela_values") or []
     horizontal_angles = data.get("horizontal_angles") or []
@@ -69,7 +70,10 @@ def center_photometry(data: dict[str, Any]) -> dict[str, Any]:
     for c_angle, row in zip(horizontal_angles, candela_values):
         peak_index, peak_value = _plane_peak_gamma(vertical_angles, list(row))
         if peak_value <= 0:
-            raise ValueError("无法确定光强峰值方向，无法进行对中校正。")
+            # 全零平面（如窄光束 Type B 中远离光束的水平平面）：无峰值可对中，原样保留
+            new_matrix.append(list(row))
+            offsets.append(0.0)
+            continue
         offset = vertical_angles[peak_index]
         offsets.append(offset)
         if peak_value > global_peak[2]:
@@ -87,6 +91,8 @@ def center_photometry(data: dict[str, Any]) -> dict[str, Any]:
                 new_row.append(round(_linear_on_vertical(vertical_angles, row, source_gamma), 3))
         new_matrix.append(new_row)
 
+    if global_peak[2] <= 0:
+        raise ValueError("无法确定光强峰值方向，无法进行对中校正。")
     scaled["candela_values"] = new_matrix
     multiplier = scaled.get("candela_multiplier", 1)
     scaled["max_candela"] = round(max(value for row in new_matrix for value in row) * multiplier, 3)
