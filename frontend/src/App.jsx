@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { generateIes, uploadIes } from './api.js'
 import UploadForm from './components/UploadForm.jsx'
 import IesInfoPanel from './components/IesInfoPanel.jsx'
@@ -50,6 +50,12 @@ export default function App() {
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  // 自动保存：用户填写过程中实时写入浏览器本地存储（原逻辑只在生成成功后保存一次）
+  useEffect(() => {
+    if (form.target_model || form.target_power_w || form.target_luminous_flux_lm || form.target_luminous_length_mm || form.target_luminous_width_mm || Object.keys(form.report_supplement || {}).length) {
+      saveLastForm(form)
+    }
+  }, [form])
 
   function selectFile(event) {
     setFile(event.target.files?.[0] || null)
