@@ -90,7 +90,7 @@ def _draw_polar_reference(c: canvas.Canvas, ph: dict[str, Any], cx: float, cy: f
             rad=math.radians(angle); r=value/maximum*radius; x,y=cx+r*math.sin(rad),cy-r*math.cos(rad)
             path.moveTo(x,y) if index==0 else path.lineTo(x,y)
         c.setStrokeColor(color);c.setLineWidth(1.35);c.drawPath(path,fill=0,stroke=1)
-    _text(c,cx-radius,cy-radius-13*mm,"C0-C180",6.3,RED);_text(c,cx-35*mm,cy-radius-13*mm,"C90-C270",6.3,BLUE)
+    _text(c,cx-radius,cy-radius-13*mm,"C0-C180",6.3,RED);_text(c,cx-radius+26*mm,cy-radius-13*mm,"C90-C270",6.3,BLUE)
     _text(c,cx+radius,cy-radius-13*mm,"Unit: cd/klm" if normalized else "Unit: cd",6.3,INK,"right")
 
 
@@ -122,13 +122,19 @@ def _logo(c: canvas.Canvas, data: dict[str, Any]) -> None:
         except Exception:
             pass
     c.setStrokeColor(GREEN); c.setLineWidth(1.2); c.rect(17 * mm, H - 27 * mm, 38 * mm, 13 * mm, fill=0, stroke=1)
-    _text(c, 36 * mm, H - 23 * mm, data["company"], 10, GREEN, "center")
+    # 公司名已在右侧信息块显示，占位框只标“LOGO”避免重复
+    _text(c, 36 * mm, H - 23 * mm, "LOGO", 10, MUTED, "center")
 
 
 def _header(c: canvas.Canvas, data: dict[str, Any], page: int, title: str) -> None:
     _logo(c, data)
-    _text(c, 61 * mm, H - 18 * mm, data["company"], 8.5)
-    _text(c, 61 * mm, H - 23 * mm, data.get("company_website") or "", 6.5, MUTED)
+    company = str(data["company"])
+    website = str(data.get("company_website") or "").strip()
+    # 网址误填为公司名时与上一行完全重复，按未提供显示为“-”
+    if website == company.strip():
+        website = ""
+    _text(c, 61 * mm, H - 18 * mm, company, 8.5)
+    _text(c, 61 * mm, H - 23 * mm, website, 6.5, MUTED)
     _text(c, 61 * mm, H - 27 * mm, data.get("company_phone") or "", 6.5, MUTED)
     _text(c, W - 17 * mm, H - 22 * mm, f"第 {page} 页", 8, INK, "right")
     c.setStrokeColor(INK); c.setLineWidth(.45); c.line(17 * mm, H - 31 * mm, W - 17 * mm, H - 31 * mm)
