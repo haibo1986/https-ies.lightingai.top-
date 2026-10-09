@@ -16,10 +16,15 @@ export default function PhotometricChart({photometry,totalLumens}){
   const planeAt=angle=>planes.find(plane=>plane.c_angle===angle)||planes[0]
   const max=Math.max(...planes.flatMap(plane=>plane.candela),1)
   const axisData=principalAxes.map((axis,index)=>({axis,index,positive:planeAt(axis.positive_c_angle),negative:planeAt(axis.negative_data_c_angle??axis.negative_c_angle)}))
-  const completePath=({positive,negative})=>`${segment([...photometry.vertical_angles].reverse(),[...negative.candela].reverse(),max,true)} ${segment(photometry.vertical_angles,positive.candela,max).replace(/^M/,'L')}`
+  // Type C：角度只覆盖 0~90/180，需用对侧平面镜像补全左半；Type B/A：角度本身覆盖 -90~90 全剖面，
+  // 镜像会把峰值翻到对侧产生假的双峰，直接画单条剖面即可。
+  const mirrored=photometry.photometric_analysis_supported!==false
+  const completePath=({positive,negative})=>mirrored
+    ?`${segment([...photometry.vertical_angles].reverse(),[...negative.candela].reverse(),max,true)} ${segment(photometry.vertical_angles,positive.candela,max).replace(/^M/,'L')}`
+    :segment(photometry.vertical_angles,positive.candela,max)
   const markers=[]
   axisData.forEach(({positive,negative,index})=>{
-    ;[[positive,false],[negative,true]].forEach(([plane,mirror])=>{
+    ;(mirrored?[[positive,false],[negative,true]]:[[positive,false]]).forEach(([plane,mirror])=>{
       ;[['crossing_angle','threshold','50'],['crossing_angle_10','threshold_10','10']].forEach(([angleKey,valueKey,level])=>{
         if(plane[angleKey]==null)return
         const[x,y]=polarPoint(mirror?-plane[angleKey]:plane[angleKey],plane[valueKey],max)

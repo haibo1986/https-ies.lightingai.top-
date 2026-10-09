@@ -165,6 +165,22 @@ def test_absolute_photometry_estimates_flux_from_matrix(sample_path: Path, tmp_p
     assert "estimated_source_flux_lm" not in relative
 
 
+def test_svg_chart_single_path_for_non_type_c(sample_path: Path, tmp_path: Path):
+    from app.report_generator import _svg_chart
+    # Type B：-90~90 角度自身覆盖全剖面，每条主平面曲线只画一次（镜像会产生假双峰）
+    path = tmp_path / "type-b.ies"
+    path.write_text(type_b_ies_text(), encoding="utf-8")
+    ctx = {"photometry": build_photometry_summary(IESParser.parse(path))}
+    svg = _svg_chart(ctx)
+    assert svg.count("<path") == 2  # 两个主平面
+    assert svg.count('d="M') == 2  # 每条路径只有一个起点（无镜像段）
+    assert svg.count("L") == 2 * (len(ctx["photometry"]["vertical_angles"]) - 1)  # 13 个角度 → 每条 12 段
+    # Type C 对照组：镜像补全对侧半平面，每条路径点数翻倍
+    svg_c = _svg_chart({"photometry": build_photometry_summary(IESParser.parse(sample_path))})
+    assert svg_c.count('d="M') == 2
+    assert svg_c.count("L") == 2 * (2 * 3 - 1)  # 3 个角度镜像拼接成 6 个点 → 每条 5 段
+
+
 def test_type_b_absolute_flux_integrates_cos_v(tmp_path: Path):
     lines = ["IESNA:LM-63-2002", "[TEST] const type b", "TILT=NONE",
              "1 -1 1 3 3 2 2 0.1 0.2 0.3", "1 1 10",

@@ -63,10 +63,13 @@ def _svg_chart(ctx: dict[str, Any]) -> str:
     maximum = max(max(plane["candela"]) for plane in planes) or 1
     cx, cy, radius = 230, 215, 170
     colors_ = ["#0d5c45", "#c07823"]
+    # Type C 用镜像补全对侧半平面；Type B/A 角度自身覆盖 -90~90 全剖面，镜像会产生假双峰。
+    mirrored = ctx["photometry"].get("photometric_analysis_supported", True) is not False
+    mirrors = (-1, 1) if mirrored else (1,)
     paths = []
     for index, plane in enumerate(planes):
         points = []
-        for mirror in (-1, 1):
+        for mirror in mirrors:
             iterable = list(zip(angles, plane["candela"]))
             if mirror == -1:
                 iterable.reverse()
