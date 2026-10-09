@@ -9,7 +9,12 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+# 随代码打包的中文字体（文泉驿微米黑，Apache-2.0 许可）：PDF 嵌入该字体后，
+# 任何阅读器（Chrome/Edge/手机等）都能正确显示中文，不再依赖客户端安装的 CID 字体。
+CJK_FONT_PATH = Path(__file__).resolve().parent / "fonts" / "wqy-microhei.ttc"
 
 
 INK = colors.HexColor("#17211d")
@@ -22,8 +27,19 @@ W, H = A4
 
 
 def _font() -> str:
-    if "STSong-Light" not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    """优先使用随代码打包的嵌入式中文字体；缺失时回退 STSong-Light（不嵌入，部分阅读器会乱码）。"""
+    registered = pdfmetrics.getRegisteredFontNames()
+    if "IES-CJK" in registered:
+        return "IES-CJK"
+    if "STSong-Light" in registered:
+        return "STSong-Light"
+    if CJK_FONT_PATH.exists():
+        try:
+            pdfmetrics.registerFont(TTFont("IES-CJK", str(CJK_FONT_PATH), subfontIndex=0))
+            return "IES-CJK"
+        except Exception:
+            pass
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
     return "STSong-Light"
 
 

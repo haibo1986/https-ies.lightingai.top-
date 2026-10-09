@@ -330,7 +330,7 @@ def _reduced_pdf(c: canvas.Canvas, data: dict[str, Any]) -> None:
     _summary_block(c,108*mm,H-67*mm,"电气参数",[("电压",f"{e.get('voltage_v') or '-'} V"),("电流",f"{e.get('current_a') or '-'} A"),("功率",f"{e['power_w']:.2f} W"),("功率因数",str(e.get('power_factor') or '-')),("光源光通量",f"{ph['target_flux_lm']:.2f} lm")],85*mm)
     _summary_block(c,17*mm,H-116*mm,"光度结果",[("灯具光通量",f"{ph['target_flux_lm']:.3f} lm"),("灯具光效",f"{ph['efficacy_lm_w']:.2f} lm/W"),("最大光强",f"{ph['max_candela_cd']:.2f} cd"),("发光面面积",f"{p['luminous_length_mm']*p['luminous_width_mm']/1_000_000:.6f} m²")],176*mm)
     c.setStrokeColor(colors.HexColor("#c07823")); c.setLineWidth(1); c.rect(17*mm,62*mm,W-34*mm,66*mm,fill=0,stroke=1)
-    _text(c,22*mm,118*mm,f"⚠️ 该 IES 为 Type {ptype} 光度坐标",9.5,colors.HexColor("#8a5a12"))
+    _text(c,22*mm,118*mm,f"注意：该 IES 为 Type {ptype} 光度坐标",9.5,colors.HexColor("#8a5a12"))
     for i,line in enumerate(("其角度范围不是 Type C 的 0-180°（垂直）/ 0-360°（水平）约定。","本简化版报告不包含极坐标/直角坐标配光曲线、光束角、等照度、亮度限制与区域光通量等 Type C 专用配光分析。","光通量缩放换算与原始光强数据表准确有效；如需该光度类型的正式配光分析，请提供 Type C 实测文件或另行坐标转换。","本报告为 ESTIMATED 估算结果，不可用于认证、验收或第三方检测结论。")):
         _text(c,22*mm,(106-i*10)*mm,f"• {line}",7.5)
     _finish(c,data)

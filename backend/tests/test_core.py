@@ -496,6 +496,23 @@ def test_center_photometry_rejects_empty_peak(tmp_path: Path):
         center_photometry(parsed)
 
 
+def test_pdf_embeds_cjk_font(sample_path: Path, tmp_path: Path):
+    parsed = IESParser.parse(sample_path)
+    parsed["original_file_name"] = "source.ies"
+    scaled = IESScaler.scale(parsed, 1000, 1200, "Font Check", 30, "power_only")
+    data = build_report_data(parsed, scaled, evaluate_risk("power_only"), {})
+    pdf_path = tmp_path / "font.pdf"
+    generate_classic_pdf(data, pdf_path)
+    from pypdf import PdfReader
+    page = PdfReader(pdf_path).pages[0]
+    bases = []
+    for ref in page["/Resources"]["/Font"].values():
+        obj = ref.get_object() if hasattr(ref, "get_object") else ref
+        if obj.get("/BaseFont"):
+            bases.append(str(obj["/BaseFont"]))
+    assert any("WenQuanYiMicroHei" in base for base in bases)  # 嵌入式中文字体，避免客户端乱码
+
+
 def test_standard_report_model_pdf_and_validation(sample_path: Path, tmp_path: Path):
     parsed = IESParser.parse(sample_path)
     parsed["original_file_name"] = "source.ies"
