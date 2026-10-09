@@ -275,6 +275,37 @@ def test_download_safety():
     assert client.get("/api/download/..%2Fsecret.txt").status_code in {400, 404}
 
 
+def test_download_pdf_page_selection(sample_path: Path):
+    upload = upload_sample(sample_path)
+    body = upload.json()
+    generated = client.post("/api/generate", json={
+        "uploaded_file_id": body["uploaded_file_id"], "source_luminous_flux_lm": 1000,
+        "target_luminous_flux_lm": 1200, "target_model": "PageSelect",
+        "target_power_w": 30, "target_luminous_length_mm": 300, "target_luminous_width_mm": 50, "change_type": "power_only",
+    }).json()
+    assert generated["pdf_page_count"] == classic_pdf_page_count(3, 2)  # 11 页
+    base = generated["pdf_report_download_url"]
+    # 区间抽取 1-3 页
+    response = client.get(f"{base}?pages=1-3")
+    assert response.status_code == 200
+    selected = __import__("pypdf").PdfReader(__import__("io").BytesIO(response.content))
+    assert len(selected.pages) == 3
+    from urllib.parse import unquote
+    assert "第1-3页" in unquote(response.headers.get("content-disposition", ""))
+    # 混合格式 1,3,5-6 → 4 页
+    mixed = client.get(f"{base}?pages=1%2C3%2C5-6")
+    assert mixed.status_code == 200
+    assert len(__import__("pypdf").PdfReader(__import__("io").BytesIO(mixed.content)).pages) == 4
+    # 原文件不被修改
+    original = client.get(base)
+    assert len(__import__("pypdf").PdfReader(__import__("io").BytesIO(original.content)).pages) == 11
+    # 非法输入一律 400
+    for spec in ("0", "12", "abc", "", "3-1", "99-100"):
+        bad = client.get(f"{base}?pages={spec}")
+        assert bad.status_code == 400, spec
+    cleanup_result(generated)
+
+
 def test_expired_runtime_files_are_cleaned_up():
     path = OUTPUT_DIR / f"expired-{uuid.uuid4().hex}.tmp"
     path.write_text("old", encoding="utf-8")

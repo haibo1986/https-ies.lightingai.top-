@@ -325,7 +325,15 @@ def generate_ies(payload: GenerateRequest) -> dict[str, Any]:
                     template_path.unlink(missing_ok=True);template_path=None
                 logger.warning("原版式报告叠加失败，仅输出标准报告", exc_info=True)
     validation=validate_standard_report(report_data,ies_path,pdf_path)
-    return {**risk,"scale_factor":scaled["scale_factor"],"centering_applied":bool(scaled.get("centering")),"centering":scaled.get("centering"),"pdf_template_applied":template_applied,"report_schema_version":report_data["schema_version"],"ies_file":ies_path.name,"report_file":md_path.name,"ies_download_url":f"/api/download/{ies_path.name}","report_download_url":f"/api/download/{md_path.name}","html_report_file":html_path.name,"pdf_report_file":pdf_path.name,"html_report_url":f"/api/view/{html_path.name}","pdf_report_url":f"/api/view/{pdf_path.name}","html_report_download_url":f"/api/download/{html_path.name}","pdf_report_download_url":f"/api/download/{pdf_path.name}","markdown_report_url":f"/api/download/{md_path.name}","template_pdf_file":template_path.name if template_path else None,"template_pdf_url":f"/api/view/{template_path.name}" if template_path else None,"template_pdf_download_url":f"/api/download/{template_path.name}" if template_path else None,"source_report":{"file_name":source_report["original_name"],"preview_url":f"/api/source-report/{payload.source_report_id}","analysis":source_report["analysis"]} if source_report else None,"ies_preview":{"target_model":scaled["target_model"],"target_power_w":scaled["target_power_w"],"target_luminous_flux_lm":scaled["target_luminous_flux_lm"],"max_candela":scaled["max_candela"],"length":scaled["length"],"width":scaled["width"],"photometry":build_photometry_summary(scaled),"validation":validation,"validation_passed":all(item["ok"] for item in validation),"text":"\n".join(ies_path.read_text(encoding="utf-8").splitlines()[:120])}}
+    return {**risk,"scale_factor":scaled["scale_factor"],"centering_applied":bool(scaled.get("centering")),"centering":scaled.get("centering"),"pdf_template_applied":template_applied,"report_schema_version":report_data["schema_version"],"ies_file":ies_path.name,"report_file":md_path.name,"ies_download_url":f"/api/download/{ies_path.name}","report_download_url":f"/api/download/{md_path.name}","html_report_file":html_path.name,"pdf_report_file":pdf_path.name,"pdf_page_count":_pdf_page_count(pdf_path),"html_report_url":f"/api/view/{html_path.name}","pdf_report_url":f"/api/view/{pdf_path.name}","html_report_download_url":f"/api/download/{html_path.name}","pdf_report_download_url":f"/api/download/{pdf_path.name}","markdown_report_url":f"/api/download/{md_path.name}","template_pdf_file":template_path.name if template_path else None,"template_pdf_url":f"/api/view/{template_path.name}" if template_path else None,"template_pdf_download_url":f"/api/download/{template_path.name}" if template_path else None,"source_report":{"file_name":source_report["original_name"],"preview_url":f"/api/source-report/{payload.source_report_id}","analysis":source_report["analysis"]} if source_report else None,"ies_preview":{"target_model":scaled["target_model"],"target_power_w":scaled["target_power_w"],"target_luminous_flux_lm":scaled["target_luminous_flux_lm"],"max_candela":scaled["max_candela"],"length":scaled["length"],"width":scaled["width"],"photometry":build_photometry_summary(scaled),"validation":validation,"validation_passed":all(item["ok"] for item in validation),"text":"\n".join(ies_path.read_text(encoding="utf-8").splitlines()[:120])}}
+
+
+def _pdf_page_count(path: Path) -> int:
+    from pypdf import PdfReader
+    try:
+        return len(PdfReader(str(path)).pages)
+    except Exception:
+        return 0
 
 
 def _safe_output(file_name: str) -> Path:
@@ -344,10 +352,56 @@ def view_output(file_name: str) -> FileResponse:
     return FileResponse(path,media_type=media,headers={"Content-Disposition":"inline"})
 
 
+def _parse_page_spec(spec: str, total_pages: int) -> list[int]:
+    """解析页码表达式（如 1-11、1,3,5-8 或混合），返回 1 基页码列表。"""
+    pages: list[int] = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start_text, end_text = part.split("-", 1)
+            try:
+                start, end = int(start_text), int(end_text)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"页码「{part}」不是合法数字。")
+            if start < 1 or end > total_pages or start > end:
+                raise HTTPException(status_code=400, detail=f"页码范围「{part}」超出 1-{total_pages} 页。")
+            pages.extend(range(start, end + 1))
+        else:
+            try:
+                page = int(part)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"页码「{part}」不是合法数字。")
+            if page < 1 or page > total_pages:
+                raise HTTPException(status_code=400, detail=f"页码「{part}」超出 1-{total_pages} 页。")
+            pages.append(page)
+    if not pages:
+        raise HTTPException(status_code=400, detail="请填写要保存的页码，例如 1-11 或 1,3,5-8。")
+    return pages
+
+
 @app.get("/api/download/{file_name}")
-def download(file_name: str) -> FileResponse:
+def download(file_name: str, pages: str | None = None) -> FileResponse:
     path=_safe_output(file_name)
-    return FileResponse(path,filename=path.name,media_type="application/octet-stream")
+    if pages is None or path.suffix.lower() != ".pdf":
+        return FileResponse(path,filename=path.name,media_type="application/octet-stream")
+    # PDF 节选：只抽取用户指定的页，另存为新文件（原文件不变）
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(str(path))
+    selected = _parse_page_spec(pages, len(reader.pages))
+    writer = PdfWriter()
+    for page_number in selected:
+        writer.add_page(reader.pages[page_number - 1])
+    stem = path.stem
+    label = pages.replace(" ", "")
+    temp = path.parent / f".{uuid.uuid4().hex}.select.tmp"
+    with temp.open("wb") as handle:
+        writer.write(handle)
+    final = path.parent / f"{stem}_第{label}页.pdf"
+    final.unlink(missing_ok=True)
+    os.replace(temp, final)
+    return FileResponse(final, filename=final.name, media_type="application/pdf")
 
 
 class LedReference(BaseModel):

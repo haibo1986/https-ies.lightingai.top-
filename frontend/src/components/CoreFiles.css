@@ -12,3 +12,4 @@
 .supporting-files summary { cursor:pointer; padding:13px 15px; color:var(--muted); font-size:12px; font-weight:600; }
 .supporting-files .file-grid { padding:0 14px 14px; grid-template-columns:1fr 1fr; }
 @media(max-width:760px) { .core-file-grid { grid-template-columns:1fr; } .core-file { grid-template-columns:52px 1fr; } .core-file>b { width:52px; height:52px; } .core-file small { grid-column:2; } }
+.page-select-box{margin-top:14px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}.page-select-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#5d6a63}.page-select-row input{width:130px;height:36px;text-align:center;font:12px Consolas,monospace}.page-select-row .button{min-height:36px;padding:0 16px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center}

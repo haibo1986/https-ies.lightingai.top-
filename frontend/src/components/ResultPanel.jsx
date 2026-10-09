@@ -8,6 +8,8 @@ const number = (value, digits = 2) => Number(value).toLocaleString('zh-CN', { ma
 
 export default function ResultPanel({ result }) {
   const [tab, setTab] = useState('ies')
+  const [selectOpen, setSelectOpen] = useState(false)
+  const [pageSpec, setPageSpec] = useState('')
   if (!result) return null
   if (!result.allow_generate) return <div className="notice danger appear" role="alert"><strong>已阻止生成：</strong>{result.risk_message}</div>
   const preview = result.ies_preview || {}
@@ -51,6 +53,15 @@ export default function ResultPanel({ result }) {
           <a className="core-file ies" href={downloadUrl(result.ies_download_url)}><b>IES</b><div><strong>{result.ies_file}</strong><span>目标型号配光文件</span></div><small>下载文件 ↓</small></a>
           <a className="core-file pdf" href={downloadUrl(result.pdf_report_download_url)}><b>PDF</b><div><strong>{result.pdf_report_file}</strong><span>经典版式专业估算光度报告</span></div><small>下载文件 ↓</small></a>
         </div>
+        {result.pdf_page_count > 0 && <div className="page-select-box">
+          <button type="button" className="button secondary" onClick={() => setSelectOpen(value => !value)} aria-expanded={selectOpen}>选择页保存 ▾</button>
+          {selectOpen && <div className="page-select-row">
+            <span>保存第</span>
+            <input type="text" value={pageSpec} onChange={event => setPageSpec(event.target.value)} placeholder="例如 1-11" aria-label="要保存的页码"/>
+            <span>页（共 {result.pdf_page_count} 页，支持 1-11、1,3,5-8）</span>
+            <a className="button primary" href={pageSpec.trim() ? downloadUrl(`${result.pdf_report_download_url}?pages=${encodeURIComponent(pageSpec.trim())}`) : undefined} aria-disabled={!pageSpec.trim()}>下载选定页 ↓</a>
+          </div>}
+        </div>}
         <details className="supporting-files"><summary>其他辅助文件</summary><div className="file-grid">
           {result.template_pdf_download_url && <a className="file-tile" href={downloadUrl(result.template_pdf_download_url)}><b>PDF</b><span>原版式估算报告</span><small>下载</small></a>}
           <a className="file-tile" href={downloadUrl(result.html_report_download_url)}><b>HTML</b><span>网页预览</span><small>下载</small></a>
