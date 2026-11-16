@@ -261,7 +261,7 @@
       <code>目标光通量
 ───────── = 缩放比例
 原始光通量</code>
-      <small>整份光强数据按同一比例缩放，配光形状保持不变。</small>
+      <small>整份光强数据按同一比例缩放；未启用「配光对中校正」时，配光形状保持不变。</small>
     </div>
   </div>
 </header>
@@ -297,30 +297,42 @@
         <code>新灯具光通量
 ───────── × 原光强数据 = 估算光强数据
 原灯具光通量</code>
-        <div class="fx">上传一份<b>真实测过的 IES 文件</b>，填入新旧灯具的光通量与参数，工具按统一比例缩放整份光强矩阵，输出<b>标注为 ESTIMATED 的 IES 文件</b>和一份<b>专业光度报告 PDF</b>（配光曲线、等照度图、亮度限制、区域光通量、完整光强表等，页数随数据规模自适应）。</div>
+        <div class="fx">上传一份<b>真实测过的 IES 文件</b>，填入新旧灯具的光通量与参数，工具按统一比例缩放整份光强矩阵，输出<b>标注为 ESTIMATED 的 IES 文件</b>和一份<b>专业光度报告 PDF</b>（配光曲线、等照度图、亮度限制、区域光通量、完整光强表等，页数随数据规模自适应）。<b>未启用「配光对中校正」时</b>，配光形状保持不变。</div>
       </div>
+      <h3>先认识这几个词</h3>
+      <div class="table-wrap"><table>
+        <tr><th style="width:20%">名词</th><th>大白话解释</th></tr>
+        <tr><td><b>IES 文件</b></td><td>记录「灯具向各个方向发出多少光」的文件，照明设计软件读它做计算</td></tr>
+        <tr><td><b>Type A / B / C</b></td><td>三种记录方向的坐标方式，<b>不代表精度等级</b>；常见灯具多用 Type C。本工具三种都支持</td></tr>
+        <tr><td><b>相对 / 绝对光度</b></td><td>相对光度：文件按每 1000lm 记录形状，光通量是文件头声明的值（可能是光源额定值）；绝对光度：文件直接记录灯具实测光强、不声明光通量，工具按光强积分估算总光通量</td></tr>
+        <tr><td><b>50% 光束角</b></td><td>光强下降到该平面峰值一半时，两侧方向之间的夹角（不是「包含 50% 光通量」的角度）</td></tr>
+        <tr><td><b>TILT</b></td><td>灯具倾斜安装时使用的光强修正数据；本工具仅支持 TILT=NONE（无倾斜修正）</td></tr>
+        <tr><td><b>C-Gamma 光强表</b></td><td>按水平平面（C）和垂直角度（γ）排列的完整光强数据表，IES 的核心内容</td></tr>
+      </table></div>
       <h3>为什么按光通量、不按功率算？</h3>
       <p>因为 LED 的光效、驱动效率和发热状态会随功率变化，<b>电功率不能可靠代表光输出</b>。按实测光通量的比例缩放，是可信度更高的做法——但即便如此，结果仍是"配光形状不变"这一假设下的<b>估算</b>。</p>
       <h3>适用与不适用</h3>
       <div class="table-wrap"><table>
-        <tr><th style="width:50%">✅ 适用场景</th><th>❌ 不适用场景</th></tr>
+        <tr><th style="width:50%">✅ 适用场景</th><th>❌ 不适用（必须重新实测）</th></tr>
         <tr><td>同系列灯具，仅功率或驱动电流变化</td><td>光束角变化、透镜更换、反光杯或其他光学结构变化</td></tr>
         <tr><td>LED 数量或密度变化，但透镜、角度和光学结构不变</td><td>需要认证、招投标定版、工程验收、第三方检测或法律用途</td></tr>
-        <tr><td>灯具长度或模组数量变化，用于前期方案评估</td><td>需要 DIALux、Relux、AGi32 场景模拟或批量数据库管理</td></tr>
-        <tr><td>PWM 调光或缺少目标光通量时的辅助估算</td><td>AI 配光预测、账号体系、云端多用户部署</td></tr>
+        <tr><td>灯具长度或模组数量变化，用于前期方案评估</td><td>正式交付定版、验收或认证</td></tr>
+        <tr><td>PWM 调光或缺少目标光通量时的辅助估算</td><td>—</td></tr>
       </table></div>
+      <p class="tip" style="color:var(--muted);font-size:13.5px"><b>本工具不提供的功能</b>：DIALux / Relux / AGi32 场景计算、批量数据库管理、AI 配光预测、账号体系。<b>但生成的估算版 IES 可以导入 DIALux、Relux、AGi32 做前期方案试算</b>，不可用于最终设计定版、验收或认证。</p>
       <h3>风险等级怎么理解</h3>
       <div class="table-wrap"><table>
         <tr><th>等级</th><th>含义</th><th>处理方式</th></tr>
-        <tr><td><span class="tag low">低风险</span></td><td>配光形状基本不变，估算结果可信度较高</td><td>正常生成</td></tr>
-        <tr><td><span class="tag medium">中风险</span></td><td>可能影响近场洗墙均匀性，结果仅适合初步模拟</td><td>可以生成，交付时需向客户说明均匀性待验证</td></tr>
+        <tr><td><span class="tag low">低风险</span></td><td>配光形状基本不变，适合估算换算</td><td>正常生成</td></tr>
+        <tr><td><span class="tag medium">中风险</span></td><td>可能影响近场洗墙均匀性，仅供早期比较和方案试算</td><td>可以生成，正式定版前必须实测验证</td></tr>
         <tr><td><span class="tag high">高风险</span></td><td>光学结构改变，统一倍率无法得到可信结果</td><td><b>禁止生成</b>，必须重新实测</td></tr>
       </table></div>
+      <div class="note warn"><span class="t">IMPORTANT</span><p>风险等级<b>只反映所选变更类型</b>，不代表估算误差大小——工具不会判断缩放倍率是否合理。产品同时发生多项变化时，应选择<b>风险最高的一项</b>；任何透镜、光束角或光学结构变化都不能用低风险选项规避。同理，「校验全部通过」只表示<b>文件格式与内部计算一致</b>，不表示目标灯具的真实光度性能已验证。</p></div>
     </section>
 
     <!-- ── 2. 快速上手 ── -->
     <section class="card" id="quickstart">
-      <div class="sec-head"><p class="eyebrow">02 / QUICK START</p><h2>快速上手（五步完成一次换算）</h2><p>完整流程约 3 分钟。第 4 步为可选增强，跳过也能生成。</p></div>
+      <div class="sec-head"><p class="eyebrow">02 / QUICK START</p><h2>快速上手（五步完成一次换算）</h2><p>资料齐全、跳过可选增强时，基础换算通常几分钟可完成；首次使用估算器或 PDF 标定需要更长时间。第 4 步为可选增强，跳过也能生成。</p></div>
       <div class="steps">
 
         <div class="step">
@@ -330,8 +342,9 @@
             <p>点击「选择 .ies 文件」选中原始实测文件，再点「上传并解析」，稍候页面会显示 IES 光度摘要。</p>
             <ul>
               <li>文件格式必须为 <span class="mono">.ies</span>，大小不超过 <b>10MB</b></li>
+              <li>标准版本仅支持 <span class="mono">IESNA:LM-63-1995</span> 和 <span class="mono">IESNA:LM-63-2002</span>，其他版本需先转换</li>
               <li>仅支持 <span class="mono">TILT=NONE</span>（不含倾斜修正数据）的文件</li>
-              <li>支持 <b>Type C、Type B、Type A</b> 三种光度坐标；Type B/A 文件同样支持换算，报告中的部分分析按 Type C 约定并会标注提示</li>
+              <li>支持 <b>Type C、Type B、Type A</b> 三种光度坐标；Type B/A 文件同样支持换算（详见 <a href="#faq">FAQ</a>）</li>
             </ul>
           </div>
         </div>
@@ -343,13 +356,14 @@
             <p>上传成功后先核对这几项，确认文件没问题再往下填：</p>
             <div class="kv-grid">
               <div class="kv"><dt>输入功率</dt><dd>xx W</dd></div>
-              <div class="kv"><dt>灯具总光通量</dt><dd>xx lm</dd></div>
+              <div class="kv"><dt>IES 声明光通量*</dt><dd>xx lm</dd></div>
               <div class="kv"><dt>光效</dt><dd>xx lm/W</dd></div>
               <div class="kv"><dt>最大光强</dt><dd>xx cd</dd></div>
               <div class="kv"><dt>50% 光束角</dt><dd>xx°</dd></div>
               <div class="kv"><dt>配光类型</dt><dd>对称 / 非对称</dd></div>
             </div>
-            <p class="tip">页面右上角的状态标签说明光通量从哪来：<b>「可自动带入光通量」</b>表示文件已声明，可直接用；<b>「已用积分估算预填」</b>表示是绝对光度文件，光通量由工具按光强矩阵数值积分<b>估算</b>而来，<b>请与实测值核对后再用</b>；<b>「需手动填写光通量」</b>表示文件数据不足以估算，需自行填写。</p>
+            <p class="tip">页面右上角的状态标签说明光通量从哪来：<b>「可自动带入光通量」</b>表示 IES 文件头填写了「灯数量 × 每灯光通量」，工具用这个乘积预填。注意：对相对光度文件，这个值<b>可能是光源额定光通量，不一定等于灯具实测总光通量</b>。换算倍率的分母必须与「目标灯具总光通量」口径一致，<b>请用与该 IES 对应的测试报告核对，以灯具实测总光通量为准</b>，只有确认一致时才可直接采用。* 该字段就是「IES 声明光通量」，不是实测值。</p>
+            <p class="tip"><b>「已用积分估算预填」</b>表示是绝对光度文件，光通量由工具按光强矩阵数值积分<b>估算</b>而来，<b>请与实测值核对后再用</b>；<b>「需手动填写光通量」</b>表示文件数据不足以估算，需自行填写。</p>
             <p class="tip">可点击展开「IES 原始技术参数」查看版本、TILT、光度类型、采样角度、倍率与灯具尺寸等原始字段，供技术人员核对。</p>
           </div>
         </div>
@@ -376,7 +390,7 @@
               <tr><td>透镜变化</td><td><span class="tag high">高</span></td><td>会改变配光形状，<b>被拦截</b>，必须重新实测</td></tr>
               <tr><td>光学结构变化</td><td><span class="tag high">高</span></td><td>风险高，<b>被拦截</b>，必须重新实测</td></tr>
             </table></div>
-            <p class="tip"><b>配光对中校正</b>（可选勾选）：把各平面配光曲线按自身峰值平移至正下方（γ=0°），曲线形状与光束角不变。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光<b>请勿勾选</b>。工具会检测当前文件峰值方向并给出建议。</p>
+            <p class="tip"><b>配光对中校正</b>（可选勾选）：把各平面配光曲线按自身峰值平移至正下方（γ=0°）。注意：勾选后会<b>实际改写 IES 光强矩阵</b>，不再是单纯的按光通量等比例缩放；当原文件角度范围有限、偏移较大时，可能丢失边缘方向数据，工具会做光通量补偿。仅在确认「灯具本应正下出光、偏移来自测试未对中」时使用，并在生成后核对结果页的「对中校正」提示。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光<b>请勿勾选</b>。工具会检测当前文件峰值方向并给出建议。</p>
           </div>
         </div>
 
@@ -389,7 +403,7 @@
               <li><b>上传原始光度测试 PDF</b>（≤20MB）：作为溯源附件，识别成功的版式还能额外生成一份「原版式报告」 → <a href="#source-pdf">第 4 章</a></li>
               <li><b>标准报告补充信息</b>：企业名称、Logo、电气参数、色温、灯具外形等，全部可选 → <a href="#supplement">第 5 章</a></li>
             </ul>
-            <p class="tip">什么都不填也可以直接生成，报告中相应位置留空。</p>
+            <p class="tip">本步骤的三项增强内容都可以跳过，报告中相应位置留空；但步骤 3 中带 * 的目标参数<b>仍必须填写</b>，否则无法生成。</p>
           </div>
         </div>
 
@@ -399,7 +413,7 @@
             <h4>生成、查看与下载<small>RESULT</small></h4>
             <p>点击「<b>生成估算 IES + 专业光度报告</b>」。处理中<b>不要刷新页面或关闭浏览器</b>。生成成功后进入结果中心：</p>
             <ul>
-              <li><b>IES 预览</b>：确认目标型号、功率、光通量、最大光强，检查 22 项校验是否全部通过，核对配光曲线与原文件形状一致（仅幅值按比例变化）</li>
+              <li><b>IES 预览</b>：确认目标型号、功率、光通量、最大光强，检查文件校验是否全部通过，核对配光曲线与原文件形状一致（仅幅值按比例变化）。校验通过只说明<b>文件格式与内部计算一致</b>，不代表真实光度性能已验证</li>
               <li><b>报告预览</b>：直接查看 PDF，可「单独打开 PDF」</li>
               <li><b>文件中心</b>：下载核心交付文件 IES + PDF；也可下载 HTML 网页预览、MD 说明，或对 PDF 做「选择页保存」 → <a href="#result">第 6 章</a></li>
             </ul>
@@ -407,7 +421,7 @@
         </div>
 
       </div>
-      <div class="note plain"><span class="t">AUTOSAVE</span><p>表单填写过程会<b>实时自动保存</b>在浏览器本地：刷新页面、更换 IES 文件都不丢，下次打开还在（公司 Logo 文件除外，需重新选择）。</p></div>
+      <div class="note plain"><span class="t">AUTOSAVE</span><p>浏览器会<b>自动保存</b>：目标型号、目标功率、目标光通量、发光面尺寸、变更类型、报告补充字段和估算器输入，刷新页面或下次打开仍在。但<b>不会保存</b>：原始光通量（换文件时会按新文件重新预填）、对中校正勾选、已上传的 IES/PDF、人工 PDF 标定、Logo 和生成结果——刷新或重新打开后，需<b>重新上传 IES 并核对上述内容</b>。</p></div>
     </section>
 
     <!-- ── 3. 估算器 ── -->
@@ -428,7 +442,7 @@
       <div class="table-wrap"><table>
         <tr><th style="width:26%">方式</th><th>操作</th></tr>
         <tr><td><b>选常用型号</b></td><td>从「常用 LED 型号」下拉选择，自动填入曲线；常用型号也可以自己存（见下）</td></tr>
-        <tr><td><b>粘贴或导入文件</b></td><td>文本框直接粘贴，每行一个数据点：<span class="mono">电流,相对光通量</span>（例如 <span class="mono">700,170</span>）；或导入 Excel（.xlsx/.xls，读第一个工作表前两列）、CSV、TXT</td></tr>
+        <tr><td><b>粘贴或导入文件</b></td><td>文本框直接粘贴，每行一个数据点：<span class="mono">电流 mA, 相对光通量 %</span>。例如 <span class="mono">700,170</span> 表示 700mA 时相对光通量为基准值的 <b>170%</b>，不是 170 lm；或导入 Excel（.xlsx/.xls，读第一个工作表前两列）、CSV、TXT</td></tr>
         <tr><td><b>曲线截图取点</b></td><td>只有产品规格书上的曲线图片？上传 PNG/JPG/WebP 截图，半自动取点（图片只在浏览器本地处理，不上传）</td></tr>
       </table></div>
       <h3><span class="num">3.2</span>曲线截图取点怎么操作（四步）</h3>
@@ -436,7 +450,7 @@
         <li>先按图面刻度填写四个轴范围（X 轴最小/最大值 mA，Y 轴最小/最大值 %）</li>
         <li>点击坐标图<b>左下角的 0/0 交点</b>（标定原点 O）</li>
         <li>点击<b>右下角 X 轴最大刻度点</b>，再点击<b>左上角 Y 轴最大刻度点</b></li>
-        <li>沿曲线点击 <b>5–12 个数据点</b>，软件自动换算成「电流, 光通量」；采好的点可在列表里直接修正或删除，确认后导入估算器</li>
+        <li>沿曲线点击 <b>5–12 个数据点</b>，软件自动换算成「电流 mA、相对光通量 %」；采好的点可在列表里直接修正或删除，确认后导入估算器</li>
       </ol>
       <div class="note plain"><span class="t">TIP</span><p>前三次点击都是<b>坐标轴位置</b>，不是曲线数据点。软件会检查 O–X 是否水平、O–Y 是否垂直，标定错误时会提示，不会进入取点阶段。</p></div>
       <h3><span class="num">3.3</span>估算结果怎么用</h3>
@@ -445,27 +459,28 @@
         <li>有效结果会<b>自动同步到主表单</b>（目标光通量、原始光通量、变更类型），无需手动抄写</li>
         <li>可填「基准点电流 + 光通量」（例如 300mA 时 218lm）：未填原始实测总光通量时，工具用它直接计算灯具总光通量；已填时按比例路径计算，基准点不参与</li>
         <li>散热与结温条件可选「与原灯具基本相同 / 未知」；透镜与光学结构可选「完全不变 / 仅材料透过率变化（需填透过率%）/ 结构变化」</li>
-        <li>配好一组曲线可点「<b>存为常用型号</b>」，下次从下拉直接选</li>
+        <li>配好一组曲线可点「<b>存为常用型号</b>」，下次从下拉直接选。注意：常用型号保存在<b>服务器公共库</b>（不在浏览器里），其他使用者可能看到，请勿存入敏感数据</li>
       </ul>
     </section>
 
     <!-- ── 4. 原始 PDF ── -->
     <section class="card" id="source-pdf">
-      <div class="sec-head"><p class="eyebrow">04 / SOURCE PDF</p><h2>原始 PDF 溯源（可选）</h2><p>上传原始光度测试报告，用于数据核对，识别成功还可生成一份「原版式报告」。</p></div>
+      <div class="sec-head"><p class="eyebrow">04 / SOURCE PDF</p><h2>原始 PDF 溯源（可选）</h2><p>上传原始光度测试报告，用于数据核对，识别成功还可生成一份「原报告版式叠加参考件」。</p></div>
       <p>在「原始光度测试 PDF」区域上传原厂测试报告（<b>≤20MB</b>）。原文件不会被修改，不传也不影响生成。</p>
       <div class="table-wrap"><table>
         <tr><th>上传后发生什么</th><th>说明</th></tr>
-        <tr><td><b>版式自动识别</b>（如惠谱 CPM-1800B 版式）</td><td>自动提取报告字段供核对，并<b>额外</b>生成一份在原版式上覆盖估算数据的「原版式报告」</td></tr>
-        <tr><td><b>版式无法自动识别</b></td><td>可人工标定：在报告首页依次框出 5 个字段（灯具型号、输入功率、总光通量、光效、最大光强），完成后同样可生成原版式报告</td></tr>
+        <tr><td><b>版式自动识别</b>（如惠谱 CPM-1800B 版式）</td><td>自动提取报告字段供核对，并<b>额外</b>生成一份在原报告版式上叠加估算数据的参考件（只更新已适配的字段区域）</td></tr>
+        <tr><td><b>版式无法自动识别</b></td><td>可人工标定：在报告首页依次框出 5 个字段（灯具型号、输入功率、总光通量、光效、最大光强），完成后生成叠加参考件——<b>只替换这 5 个框选字段，其余页面仍是原灯具内容</b></td></tr>
         <tr><td><b>识别值的作用</b></td><td>只用于核对与版式叠加，<b>不会覆盖</b>目标 IES 的计算结果；标准报告始终以目标 IES 和补充表单为唯一数据源</td></tr>
       </table></div>
-      <div class="note plain"><span class="t">NOTE</span><p>标准版专业报告<b>始终由目标 IES 统一生成</b>（页数随数据规模自适应），原版式报告是识别成功后的<b>附加可选交付物</b>，叠加失败不影响标准报告。</p></div>
+      <div class="note warn"><span class="t">IMPORTANT</span><p>叠加参考件<b>不是完整重算报告</b>：人工标定只替换首页框选的 5 个字段，自动识别也只更新已适配区域，其余页面的曲线、表格和文字仍保留原灯具内容。生成后<b>必须逐页核对</b>，不得单独作为目标型号的正式或完整光度报告发送。计算结果以标准估算报告和估算版 IES 为准。</p></div>
+      <div class="note plain"><span class="t">NOTE</span><p>标准版专业报告<b>始终由目标 IES 统一生成</b>（页数随数据规模自适应），叠加参考件是识别成功后的<b>附加可选交付物</b>，叠加失败不影响标准报告。</p></div>
     </section>
 
     <!-- ── 5. 补充信息 ── -->
     <section class="card" id="supplement">
       <div class="sec-head"><p class="eyebrow">05 / REPORT METADATA</p><h2>报告补充信息（全部可选）</h2><p>这些字段由用户提供，会在报告中与 IES 计算数据分开标识。</p></div>
-      <p>可以点「<b>选择客户模板</b>」一键填入已保存的客户资料，或填完后「<b>存为客户模板</b>」供下次复用。</p>
+      <p>可以点「<b>选择客户模板</b>」一键填入已保存的客户资料，或填完后「<b>存为客户模板</b>」供下次复用。注意：表单草稿只保存在当前浏览器，而<b>客户模板保存在服务器公共库</b>，多人共享部署下其他使用者可能看到模板内容（企业名称、网址、电话等），请勿保存敏感信息。</p>
       <div class="table-wrap"><table>
         <tr><th style="width:18%">分组</th><th>字段</th><th>提示</th></tr>
         <tr><td><b>报告身份</b></td><td>企业名称、企业网址、联系电话、生产厂家、报告编号、报告日期、产品描述</td><td>报告编号留空自动生成；日期留空自动填生成日期</td></tr>
@@ -486,56 +501,61 @@
       <div class="sec-head"><p class="eyebrow">06 / RESULT CENTER</p><h2>结果与文件中心</h2><p>生成后自动滚动到结果中心，分三个标签页。</p></div>
       <h3><span class="num">6.1</span>IES 预览</h3>
       <ul>
-        <li>顶部显示<b>缩放比例</b>、风险等级与校验状态；确认「校验：<b>全部通过</b>」再下载</li>
+        <li>顶部显示<b>缩放比例</b>、风险等级与校验状态；确认「校验：<b>全部通过</b>」再下载。校验只检查<b>文件格式与内部计算一致性</b>，不代表目标灯具的真实光度性能已验证</li>
         <li>目标型号 / 功率 / 光通量 / 最大光强四项指标供核对</li>
-        <li>「文件检查」列出 22 项校验，每项 ✓/×；配光曲线应与原文件<b>形状一致、仅幅值按比例变化</b></li>
+        <li>「文件检查」逐项列出校验结果：完整报告约 22 项，简化报告（部分 Type A/B）约 11 项，<b>数量随报告模式变化，少于 22 项不是异常</b>；配光曲线应与原文件<b>形状一致、仅幅值按比例变化</b></li>
         <li>必要时展开「IES 原始文本」（前 120 行）做技术核对</li>
       </ul>
       <h3><span class="num">6.2</span>报告预览</h3>
-      <p>内嵌查看生成的 PDF，也可点「单独打开 PDF」。报告包含产品与电气参数、极坐标/直角坐标配光曲线、归一化配光、平面与空间等照度、投影发光面亮度、照度距离、球面积分区域光通量、光度数据质量校验、完整 C-Gamma 光强表、换算依据与使用声明。</p>
+      <p>内嵌查看生成的 PDF，也可点「单独打开 PDF」。<b>Type C 文件</b>（或转换成功的 Type A/B）：报告包含产品与电气参数、极坐标/直角坐标配光曲线、归一化配光、平面与空间等照度、投影发光面亮度、照度距离、球面积分区域光通量、光度数据质量校验、光强表（Type C 报告按原始角度数据展示；Type A/B 转换报告的数据表按约 γ5°×C15° 抽样以控制页数，完整输出以生成的 IES 为准）、换算依据与使用声明。<b>角度覆盖不足的 Type A/B 文件</b>：生成简化报告，仅含参数摘要、原始光强数据表和使用声明，不包含配光曲线、光束角、等照度、亮度限制及区域光通量等分析。</p>
       <h3><span class="num">6.3</span>文件中心</h3>
       <div class="table-wrap"><table>
         <tr><th>文件</th><th>内容</th><th>用途</th></tr>
-        <tr><td><b>IES</b></td><td>目标型号估算配光文件</td><td>核心交付，用于下游设计工具</td></tr>
-        <tr><td><b>PDF</b></td><td>经典版式专业估算光度报告</td><td>核心交付，可直接发给客户</td></tr>
-        <tr><td><b>原版式 PDF</b>（如有）</td><td>在原始报告版式上覆盖估算数据</td><td>可选附加交付物，需版式识别或人工标定成功</td></tr>
+        <tr><td><b>IES</b></td><td>目标型号估算配光文件</td><td>核心估算文件，可导入 DIALux / Relux / AGi32 做前期试算（不可用于定版、验收或认证）</td></tr>
+        <tr><td><b>PDF</b></td><td>经典版式专业估算光度报告</td><td>核心估算文件，仅可用于客户<b>前期沟通</b>；发送前确认报告带 ESTIMATED 标识，并说明不是实验室实测或认证报告</td></tr>
+        <tr><td><b>原版式 PDF</b>（如有）</td><td>在原报告版式上叠加估算数据的<b>参考件</b>（仅替换标定/适配区域）</td><td>可选附件，须逐页核对后与标准报告配套使用</td></tr>
         <tr><td><b>HTML</b></td><td>网页版报告预览</td><td>网页查看或内部留档</td></tr>
         <tr><td><b>MD</b></td><td>内部说明（换算依据等）</td><td>内部留档</td></tr>
         <tr><td><b>原始 PDF</b>（如有上传）</td><td>原件预览</td><td>溯源核对，原文件不被改写</td></tr>
       </table></div>
       <h3><span class="num">6.4</span>选择页保存</h3>
       <p>PDF 页数多、只想发其中几页？在文件中心点「选择页保存 ▾」，输入页码范围，例如 <span class="mono">1-11</span> 或 <span class="mono">1,3,5-8</span>，即可下载一个只含所选页的新 PDF（原文件不变）。</p>
-      <div class="note warn"><span class="t">RETENTION</span><p>服务器上的上传与生成文件<b>保留 24 小时</b>后自动清理；服务重启也会清除上传记录。请生成后<b>及时下载</b>，隔天再下载可能提示「文件不存在」，重新上传生成即可。</p></div>
+      <div class="note warn"><span class="t">RETENTION</span><p>服务器上的上传与生成文件<b>不是长期存储</b>：超过 24 小时的文件会在后续上传或生成操作触发清理时删除，<b>不能保证隔天仍可下载</b>（24 小时也不是精确删除时点）。服务重启后上传记录也会失效。生成后请<b>立即下载</b>并按公司规则归档，隔天再下载可能提示「文件不存在」，重新上传生成即可。</p></div>
     </section>
 
     <!-- ── 7. FAQ ── -->
     <section class="card" id="faq">
       <div class="sec-head"><p class="eyebrow">07 / FAQ</p><h2>常见问题</h2></div>
+      <details class="faq"><summary>IES 自动带入的光通量与测试报告不一致，以哪个为准？</summary><div class="faq-a"><p>以<b>与该 IES 对应的测试报告中的灯具实测总光通量</b>为准。IES 里「可自动带入」的值是文件头填写的「灯数量 × 每灯光通量」，对相对光度文件可能是光源额定光通量，不等于灯具实测总光通量。换算倍率的分母必须用实测总光通量，口径不一致会导致整个光强矩阵按错误倍率缩放。</p></div></details>
       <details class="faq"><summary>绝对光度文件的光通量要自己填吗？</summary><div class="faq-a"><p>IES 未声明光通量时，工具会按光强矩阵数值积分估算并<b>预填</b>一个值。这个值是估算的，<b>请与实测报告核对后使用</b>；如无法积分则需手动填写。</p></div></details>
-      <details class="faq"><summary>Type B / Type A 文件能用吗？有什么区别？</summary><div class="faq-a"><p>能用。光通量缩放对任意光度坐标都正确，输出 IES 保持原坐标。区别在报告分析：光束角按 H≈0 剖面 FWHM 计算，配光分析基于 Type B→C 球面重采样，按 Type C 约定展示并标注提示，仅供参考。</p></div></details>
+      <details class="faq"><summary>Type B / Type A 文件能用吗？有什么区别？</summary><div class="faq-a"><p>能用。光通量缩放对任意光度坐标都正确，输出 IES 保持原坐标。区别在报告：工具会在角度覆盖足够时把 Type A/B 转换为 Type C 后分析（配光分析按 Type C 约定展示，仅供参考）；<b>角度覆盖不足时生成简化报告</b>，仅含参数摘要、原始光强数据表和使用声明，没有配光曲线、光束角、等照度、亮度限制和区域光通量。Type A/B 的光束角按 H≈0 剖面「半峰值全宽」（即 50% 光强光束角）计算。</p></div></details>
       <details class="faq"><summary>为什么有些变更类型不能生成？</summary><div class="faq-a"><p>光束角、透镜、光学结构变化会改变<b>配光形状</b>，统一倍率缩放得不到可信结果，工具会拦截并提示「必须重新实测」。这不是 bug，是防止发出错误数据。</p></div></details>
-      <details class="faq"><summary>中风险可以继续生成吗？</summary><div class="faq-a"><p>可以，用于前期方案模拟没问题。但 LED 数量/密度或灯具长度变化可能影响<b>近场洗墙均匀性</b>，交付时建议向客户说明，正式定版前安排实测验证。</p></div></details>
+      <details class="faq"><summary>中风险可以继续生成吗？</summary><div class="faq-a"><p>可以，但仅供<b>早期比较和方案试算</b>。LED 数量/密度或灯具长度变化可能影响<b>近场洗墙均匀性</b>，正式定版前必须实测验证，不能凭中风险结果定稿或验收。</p></div></details>
+      <details class="faq"><summary>为什么校验全部通过，仍然不能用于验收？</summary><div class="faq-a"><p>「校验全部通过」只表示<b>文件格式和内部计算一致</b>，不表示目标灯具的真实光度性能已验证。工具的核心假设是「配光形状不变、按光通量等比缩放」，它无法预测真实的光学、热学差异，结果始终是 ESTIMATED 估算值。</p></div></details>
+      <details class="faq"><summary>缩放倍率很大时还能用吗？</summary><div class="faq-a"><p>工具<b>不设合理性上限</b>，任何正数倍率都会照算。但倍率偏离越大，与真实产品性能的偏差通常也越大。缩放前请先判断目标灯具是否真的只是「同结构、按比例变化」——如果倍率意味着光学结构都要改，那就该重新实测。</p></div></details>
       <details class="faq"><summary>为什么按光通量比、不按功率比缩放？</summary><div class="faq-a"><p>LED 光效、驱动效率、热状态都随功率变化，电功率不能可靠代表光输出；实测光通量的比例更接近真实光输出关系。即便如此，结果仍是「配光形状不变」假设下的估算。</p></div></details>
-      <details class="faq"><summary>上传失败常见原因有哪些？</summary><div class="faq-a"><p>① 不是 <span class="mono">.ies</span> 后缀；② 文件超过 10MB；③ 文件含 TILT=INCLUDE / TILT=FILE（仅支持 TILT=NONE）；④ 文件结构不完整，解析被拒。报错信息会说明具体原因。</p></div></details>
-      <details class="faq"><summary>生成过程中刷新了页面怎么办？</summary><div class="faq-a"><p>生成会中断，需要重新点生成。生成期间请勿刷新或关闭页面；生成成功后表单会自动保存，刷新不丢数据。</p></div></details>
-      <details class="faq"><summary>隔天回来下载提示「文件不存在」？</summary><div class="faq-a"><p>服务器文件保留 24 小时自动清理，服务重启也会清除上传记录。重新上传 IES 再生成一次即可。</p></div></details>
-      <details class="faq"><summary>填了一半的表单刷新会丢吗？</summary><div class="faq-a"><p>不会。表单与估算器输入都实时保存在浏览器本地，刷新、换文件、下次打开都在（公司 Logo 文件除外，需重新选择）。<b>换浏览器或清除浏览器数据会丢。</b></p></div></details>
-      <details class="faq"><summary>报告页数为什么每次不一样？</summary><div class="faq-a"><p>页数随数据规模自适应：光强表按 γ5°×C15° 抽样展示（完整数据以 IES 文件为准），角度数量越多页数越多。同一文件生成结果应一致。</p></div></details>
-      <details class="faq"><summary>标准报告和原版式报告是什么关系？</summary><div class="faq-a"><p>标准报告始终由目标 IES 生成，是<b>主要交付物</b>。原版式报告是把估算数据覆盖到原始测试报告的版式上，只有版式自动识别成功或人工标定完成才生成，是<b>附加</b>交付物。</p></div></details>
-      <details class="faq"><summary>配光对中校正要不要勾？</summary><div class="faq-a"><p>非偏光设计的灯具，若最大光强方向偏离正下方（γ 超过 1°），建议勾选，各平面曲线会按峰值平移对中，形状与光束角不变。洗墙灯等<b>偏光配光不要勾</b>。工具会根据文件自动提示。</p></div></details>
+      <details class="faq"><summary>上传失败常见原因有哪些？</summary><div class="faq-a"><p>① 不是 <span class="mono">.ies</span> 后缀；② 文件超过 10MB；③ 文件含 TILT=INCLUDE / TILT=FILE（仅支持 TILT=NONE）；④ 标准版本不是 LM-63-1995 / LM-63-2002；⑤ 文件结构不完整，解析被拒。报错信息会说明具体原因。</p></div></details>
+      <details class="faq"><summary>生成过程中刷新了页面怎么办？</summary><div class="faq-a"><p>刷新或关闭页面后，当前上传记录和结果页会丢失，不能依赖后台继续完成。请<b>重新上传 IES</b>，核对原始光通量、对中校正勾选等未自动保存的内容后，再重新生成。</p></div></details>
+      <details class="faq"><summary>隔天回来下载提示「文件不存在」？</summary><div class="faq-a"><p>服务器文件不是长期存储：超过 24 小时的文件会在后续上传或生成时被清理，24 小时也不是精确删除时点；服务重启同样会使上传记录失效。重新上传 IES 再生成一次即可，生成后请立即下载归档。</p></div></details>
+      <details class="faq"><summary>刷新后哪些内容会保留、哪些要重来？</summary><div class="faq-a"><p><b>自动保留</b>（浏览器本地）：目标型号、目标功率、目标光通量、发光面尺寸、变更类型、报告补充字段、估算器输入。<b>不保留、需重来</b>：已上传的 IES / PDF、原始光通量（按新文件重新预填）、对中校正勾选、人工 PDF 标定、Logo、生成结果。换浏览器或清除浏览器数据，自动保留的部分也会丢。</p></div></details>
+      <details class="faq"><summary>客户模板和常用 LED 型号存在哪里？别人能看到吗？</summary><div class="faq-a"><p>两者都保存在<b>服务器公共库</b>（不是浏览器），多人共享部署下其他使用者可能看到模板内容。请勿保存敏感客户信息或保密数据；表单草稿只保存在当前浏览器。</p></div></details>
+      <details class="faq"><summary>报告页数为什么每次不一样？</summary><div class="faq-a"><p>页数随数据规模自适应。普通 Type C 报告按原始角度数据展示光强表；Type A/B 转换报告的数据表按约 γ5°×C15° 抽样以控制页数（完整输出以生成的 IES 为准）；简化报告页数更少。同一文件生成结果应一致。</p></div></details>
+      <details class="faq"><summary>标准报告和「原版式报告」是什么关系？</summary><div class="faq-a"><p>标准报告始终由目标 IES 生成，是<b>主要交付物</b>。「原版式报告」是把估算数据叠加到原始测试报告版式上的<b>参考件</b>——只替换人工标定的 5 个字段或自动识别的适配区域，<b>其余页面仍是原灯具内容，不是完整重算报告</b>。须逐页核对后与标准报告配套使用。</p></div></details>
+      <details class="faq"><summary>配光对中校正要不要勾？</summary><div class="faq-a"><p>非偏光设计的灯具，若最大光强方向偏离正下方（γ 超过 1°），可考虑勾选。注意它会<b>实际改写 IES 光强矩阵</b>（不再是单纯等比缩放），角度范围不足时可能丢失边缘方向数据。仅在确认「灯具本应正下出光、偏移来自测试未对中」时使用，生成后核对结果页的对中提示。洗墙灯等<b>偏光配光不要勾</b>。</p></div></details>
     </section>
 
     <!-- ── 8. 检查清单 ── -->
     <section class="card" id="checklist">
-      <div class="sec-head"><p class="eyebrow">08 / CHECKLIST</p><h2>交付前检查清单</h2><p>每次对外交付估算文件前，逐项确认：</p></div>
+      <div class="sec-head"><p class="eyebrow">08 / CHECKLIST</p><h2>对外发送前检查清单</h2><p>每次对外发送估算文件（用于前期沟通）前，逐项确认：</p></div>
       <ul class="checklist">
         <li><span class="box" aria-hidden="true"></span>原始 IES 来自可信的光度实测</li>
-        <li><span class="box" aria-hidden="true"></span>原始实测总光通量填写正确（绝对光度文件已与实测值核对）</li>
+        <li><span class="box" aria-hidden="true"></span>原始实测总光通量填写正确，且与目标光通量口径一致（IES 声明值已与测试报告核对；绝对光度文件已与实测值核对）</li>
         <li><span class="box" aria-hidden="true"></span>目标型号、功率、光通量和发光面尺寸与产品资料一致</li>
-        <li><span class="box" aria-hidden="true"></span>变更类型与真实产品变化一致，没有用低风险规避高风险拦截</li>
-        <li><span class="box" aria-hidden="true"></span>结果页显示「校验：全部通过」</li>
-        <li><span class="box" aria-hidden="true"></span>IES 与 PDF 均已下载、打开并检查</li>
-        <li><span class="box" aria-hidden="true"></span>已向客户声明文件为 ESTIMATED 估算结果，非认证级测试报告</li>
+        <li><span class="box" aria-hidden="true"></span>变更类型与真实产品变化一致（多项变化时选风险最高项），没有用低风险规避高风险拦截</li>
+        <li><span class="box" aria-hidden="true"></span>结果页显示「校验：全部通过」，并明白这只表示文件格式与内部计算一致</li>
+        <li><span class="box" aria-hidden="true"></span>IES 与 PDF 均已下载、打开并检查；PDF 带 ESTIMATED 标识</li>
+        <li><span class="box" aria-hidden="true"></span>已向客户声明文件为 ESTIMATED 估算结果、非认证级测试报告，仅用于前期沟通</li>
+        <li><span class="box" aria-hidden="true"></span>如使用原版式叠加参考件，已逐页核对并配套标准报告</li>
         <li><span class="box" aria-hidden="true"></span>正式认证、验收或定版前已安排重新实测</li>
       </ul>
     </section>
