@@ -1,0 +1,587 @@
+<title>IES 换算工具使用说明</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  /* ── 设计令牌：沿用应用自身视觉系统（ink 墨绿 / green 深绿 / lime 荧光绿）── */
+  :root{
+    --ink:#17211d;          /* 墨色：深绿黑，应用的文字与英雄区底色 */
+    --green:#0d5c45;        /* 主色：测光实验室般的深绿 */
+    --lime:#cbe86b;         /* 强调色：荧光绿，仅用于深底与关键标记 */
+    --ground:#f7f8f6;       /* 纸面底色 */
+    --card:#ffffff;
+    --card-soft:#fafbf9;
+    --line:#e2e6e0;
+    --line-strong:#cdd3ce;
+    --muted:#64706a;
+    /* 语义色（与应用风险提示一致） */
+    --ok:#258059;  --ok-bg:#eef7f2;
+    --warn:#ca8618; --warn-bg:#fff8e8; --warn-line:#d7961d;
+    --bad:#c4412d; --bad-bg:#fff0ed; --bad-line:#d64d37;
+    --lime-bg:#e5efbf; --lime-line:#c9da89;
+    /* 深底（英雄区两种主题都保持深色，与应用一致） */
+    --hero-ink:#101815;
+    --hero-ink-2:#17211d;
+    --hero-text:#e8edea;
+    --hero-muted:#9fb0a7;
+    --hero-line:#ffffff22;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e6ebe8;
+      --green:#46b38b;
+      --lime:#cbe86b;
+      --ground:#0f1512;
+      --card:#1a211d;
+      --card-soft:#161d19;
+      --line:#2a332e;
+      --line-strong:#38443e;
+      --muted:#93a099;
+      --ok:#4cc08e; --ok-bg:#12291f;
+      --warn:#e0a344; --warn-bg:#2b2210; --warn-line:#8a6a1d;
+      --bad:#e26c57; --bad-bg:#2d1712; --bad-line:#9c4230;
+      --lime-bg:#232b12; --lime-line:#4d5a24;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e6ebe8;
+    --green:#46b38b;
+    --lime:#cbe86b;
+    --ground:#0f1512;
+    --card:#1a211d;
+    --card-soft:#161d19;
+    --line:#2a332e;
+    --line-strong:#38443e;
+    --muted:#93a099;
+    --ok:#4cc08e; --ok-bg:#12291f;
+    --warn:#e0a344; --warn-bg:#2b2210; --warn-line:#8a6a1d;
+    --bad:#e26c57; --bad-bg:#2d1712; --bad-line:#9c4230;
+    --lime-bg:#232b12; --lime-line:#4d5a24;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-width:320px;
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;
+    color:var(--ink);background:var(--ground);
+    font-size:15px;line-height:1.75;
+  }
+  .mono{font-family:Consolas,"SF Mono",ui-monospace,monospace}
+  code,pre,kbd{font-family:Consolas,"SF Mono",ui-monospace,monospace}
+  a{color:var(--green)}
+  h1,h2,h3,h4{margin:0;font-weight:600;text-wrap:balance;line-height:1.35}
+  p{margin:0 0 12px}
+  button{font:inherit}
+
+  /* ── 英雄区：与应用首页同构（深底 + 同心环 + 缩放公式）── */
+  .hero{
+    background:
+      radial-gradient(1100px 520px at 82% -12%,rgba(203,232,107,.08),transparent 60%),
+      linear-gradient(180deg,var(--hero-ink) 0%,var(--hero-ink-2) 100%);
+    color:var(--hero-text);position:relative;overflow:hidden;
+  }
+  .hero:after{
+    content:"";position:absolute;width:460px;height:460px;
+    border:1px solid #ffffff14;border-radius:50%;
+    right:-90px;top:-190px;
+    box-shadow:0 0 0 90px #ffffff05,0 0 0 180px #ffffff03;
+  }
+  .hero-inner{max-width:1120px;margin:auto;padding:40px 24px 56px;position:relative;z-index:1}
+  .brand{display:flex;align-items:center;gap:12px;font:500 11px Consolas,monospace;letter-spacing:2px;color:#aeb8b2}
+  .brand-mark{background:var(--lime);color:var(--hero-ink);padding:8px 7px;font-weight:700;letter-spacing:0;border-radius:3px}
+  .brand .sep{color:#5d6b63;margin:0 6px}
+  .hero-copy{margin-top:44px}
+  .eyebrow{font:500 11px Consolas,monospace;letter-spacing:2.5px;color:var(--lime);margin:0 0 10px}
+  .hero-copy h1{font-size:clamp(34px,5vw,52px);font-weight:400;letter-spacing:-1.5px;line-height:1.15;max-width:640px}
+  .hero-copy h1 em{font-style:normal;color:var(--lime)}
+  .hero-copy>p{color:var(--hero-muted);max-width:600px;margin:20px 0 0;font-size:15px}
+  .hero-meta{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+  .pill{font:500 11px Consolas,monospace;letter-spacing:1px;padding:6px 12px;border:1px solid var(--hero-line);border-radius:20px;color:var(--hero-muted)}
+  .pill a{color:var(--lime);text-decoration:none;border-bottom:1px solid transparent}
+  .pill a:hover{border-color:var(--lime)}
+  .formula{position:absolute;right:25px;bottom:52px;border-left:1px solid var(--hero-line);padding-left:28px;max-width:300px}
+  .formula span{font:10px Consolas,monospace;letter-spacing:1.8px;color:#86918b}
+  .formula code{display:block;color:#d7ddd9;font:13px/1.7 Consolas,monospace;margin-top:12px;white-space:pre}
+  .formula small{display:block;margin-top:10px;color:var(--hero-muted);font-size:12px;line-height:1.6}
+
+  /* ── 声明条：与应用免责声明同款 ── */
+  .disclaimer{
+    max-width:1000px;margin:28px auto 0;padding:0 24px;
+  }
+  .disclaimer-box{
+    background:var(--lime-bg);border:1px solid var(--lime-line);border-radius:6px;
+    display:flex;align-items:flex-start;gap:14px;padding:15px 18px;font-size:13.5px;
+  }
+  .disclaimer-box>span{border:1px solid var(--ink);border-radius:50%;min-width:23px;height:23px;display:grid;place-items:center;font-weight:700;font-family:Consolas,monospace}
+  .disclaimer-box p{margin:0;line-height:1.65}
+  .disclaimer-box strong{color:inherit}
+
+  /* ── 主布局：目录 + 正文 ── */
+  .layout{max-width:1160px;margin:40px auto 0;padding:0 24px;display:grid;grid-template-columns:232px minmax(0,1fr);gap:48px;align-items:start}
+  nav.toc{position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto;padding:4px 0 24px}
+  .toc-title{font:500 11px Consolas,monospace;letter-spacing:2.5px;color:var(--muted);margin:0 0 14px}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;font-size:13.5px;padding:5px 0 5px 14px;border-left:2px solid var(--line);transition:color .15s,border-color .15s}
+  nav.toc a:hover{color:var(--green)}
+  nav.toc a.on{color:var(--green);border-left-color:var(--green);font-weight:600}
+  .content{min-width:0;padding-bottom:90px}
+
+  /* ── 卡片与章节（与应用卡片语言一致）── */
+  section.card{
+    background:var(--card);border:1px solid var(--line);border-radius:6px;
+    box-shadow:0 8px 30px rgba(20,26,23,.05);
+    margin-bottom:28px;padding:30px 34px 34px;
+  }
+  section.card:hover{border-color:var(--line-strong)}
+  .sec-head{margin-bottom:20px}
+  .sec-head .eyebrow{color:var(--green)}
+  .sec-head h2{font-size:22px;font-weight:500;letter-spacing:-.3px}
+  .sec-head p{color:var(--muted);font-size:13px;margin:6px 0 0}
+  h3{font-size:16px;margin:26px 0 10px}
+  h3 .num{font-family:Consolas,monospace;font-weight:500;color:var(--green);margin-right:8px;font-size:14px}
+  section.card>h3:first-of-type,section.card .sec-head+h3{margin-top:0}
+
+  /* 步骤卡（五步流程） */
+  .steps{counter-reset:step}
+  .step{display:grid;grid-template-columns:56px minmax(0,1fr);gap:0;border-top:1px solid var(--line)}
+  .step:first-child{border-top:0}
+  .step-num{
+    font:500 17px Consolas,monospace;color:var(--green);
+    display:flex;justify-content:center;padding-top:26px;
+    border-right:1px solid var(--line);
+  }
+  .step-body{padding:22px 0 24px 24px}
+  .step-body h4{font-size:16.5px;margin:0 0 8px}
+  .step-body h4 small{font-family:Consolas,monospace;font-weight:400;color:var(--muted);font-size:12px;margin-left:8px}
+  .step-body p{color:var(--ink)}
+  .step-body p.tip{color:var(--muted);font-size:13.5px}
+  .step-body p.tip b{color:var(--ink)}
+  .step-body ul{margin:6px 0 12px;padding-left:22px}
+  .step-body li{margin:4px 0}
+
+  /* 提示框 */
+  .note{padding:13px 16px;margin:14px 0;font-size:13.5px;line-height:1.7;border-left:3px solid;border-radius:0 4px 4px 0}
+  .note p{margin:0}
+  .note b{font-weight:600}
+  .note.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--ink)}
+  .note.warn .t{color:var(--warn)}
+  .note.bad{background:var(--bad-bg);border-color:var(--bad-line)}
+  .note.bad .t{color:var(--bad)}
+  .note.ok{background:var(--ok-bg);border-color:var(--ok)}
+  .note.ok .t{color:var(--ok)}
+  .note.plain{background:var(--card-soft);border-color:var(--line-strong)}
+  .note .t{display:block;font-family:Consolas,monospace;font-size:11px;letter-spacing:1.5px;margin-bottom:2px}
+
+  /* 公式框 */
+  .formula-box{
+    background:var(--card-soft);border:1px solid var(--line);border-left:3px solid var(--green);
+    border-radius:4px;padding:16px 20px;margin:16px 0;display:flex;gap:22px;align-items:center;flex-wrap:wrap;
+  }
+  .formula-box code{font-size:15px;line-height:1.9;white-space:pre;color:var(--ink)}
+  .formula-box .fx{color:var(--muted);font-size:13px;line-height:1.7;flex:1;min-width:230px}
+  .formula-box .fx b{color:var(--ink)}
+
+  /* 表格 */
+  .table-wrap{overflow-x:auto;margin:12px 0 18px;border:1px solid var(--line);border-radius:6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px}
+  th{background:var(--card-soft);text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.5px}
+  th,td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.65}
+  tr:last-child td{border-bottom:0}
+  td .mono{font-size:12.5px}
+  .tag{display:inline-block;font:600 11px Consolas,monospace;letter-spacing:.5px;padding:2px 9px;border-radius:12px;white-space:nowrap}
+  .tag.low{background:var(--ok-bg);color:var(--ok)}
+  .tag.medium{background:var(--warn-bg);color:var(--warn)}
+  .tag.high{background:var(--bad-bg);color:var(--bad)}
+  .tag.info{background:var(--card-soft);color:var(--muted);border:1px solid var(--line)}
+
+  /* 数据点网格 */
+  .kv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:12px 0 18px}
+  .kv{background:var(--card-soft);padding:13px 16px}
+  .kv dt{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+  .kv dd{margin:0;font:500 14px Consolas,monospace}
+
+  /* FAQ */
+  details.faq{border-top:1px solid var(--line);padding:13px 2px}
+  details.faq:first-of-type{border-top:0}
+  details.faq summary{cursor:pointer;font-weight:600;font-size:14.5px;list-style:none;display:flex;gap:10px;align-items:baseline}
+  details.faq summary::-webkit-details-marker{display:none}
+  details.faq summary:before{content:"Q";font:600 12px Consolas,monospace;color:var(--green);border:1px solid var(--green);border-radius:3px;padding:1px 6px;flex:none}
+  details.faq summary:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+  details.faq .faq-a{padding:8px 0 4px 38px;font-size:13.5px;color:var(--ink)}
+  details.faq .faq-a p{margin:0 0 8px}
+
+  /* 检查清单 */
+  .checklist{list-style:none;margin:0;padding:0}
+  .checklist li{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px}
+  .checklist li:last-child{border-bottom:0}
+  .checklist .box{flex:none;width:17px;height:17px;border:1.5px solid var(--green);border-radius:4px;margin-top:4px}
+
+  /* 页脚（与应用页脚一致） */
+  footer{border-top:1px solid var(--line);margin-top:70px}
+  .footer-inner{max-width:1160px;margin:0 auto;padding:30px 24px 22px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+  .footer-brand{display:flex;align-items:center;gap:12px;font:500 10px Consolas,monospace;color:var(--muted);letter-spacing:1.5px}
+  .footer-mark{background:var(--lime);color:var(--hero-ink);padding:6px 5px;font-weight:700;letter-spacing:0;border-radius:3px}
+  .footer-note{margin:0;padding:14px 24px 34px;border-top:1px solid var(--line);font:10px Consolas,monospace;color:var(--muted);letter-spacing:1px;text-align:center}
+
+  /* 打印 */
+  @media print{
+    nav.toc,.hero .formula,.pill a,.no-print{display:none !important}
+    .layout{display:block;max-width:100%;padding:0}
+    section.card{box-shadow:none;break-inside:avoid}
+    body{background:#fff}
+  }
+
+  /* 响应式 */
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr;gap:0}
+    nav.toc{display:none}
+    .formula{display:none}
+    section.card{padding:24px 20px}
+    .step{grid-template-columns:44px minmax(0,1fr)}
+    .step-body{padding-left:16px}
+  }
+  @media(max-width:460px){
+    .step-num{display:none}
+    .step{display:block}
+    .step-body{padding-left:0;border-top:1px solid var(--line);margin-top:10px}
+  }
+</style>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand"><span class="brand-mark">IES</span><span>PHOTOMETRIC TOOLS</span><span class="sep">/</span><span>USER GUIDE</span></div>
+    <div class="hero-copy">
+      <p class="eyebrow">海波AI 赋能 LED 照明行业</p>
+      <h1>内部 IES 快速换算工具<br/><em>用户使用说明</em></h1>
+      <p>把一份已实测的 IES 光度文件，按目标光通量的比例整体缩放，生成目标型号的估算版 IES 文件与专业光度报告 PDF。</p>
+      <div class="hero-meta">
+        <span class="pill">适用版本 v1.3.0 · 2026-11</span>
+        <span class="pill">站点 <a href="https://ies.lightingai.top">ies.lightingai.top</a></span>
+        <span class="pill">建议浏览器 Chrome / Edge</span>
+      </div>
+    </div>
+    <div class="formula">
+      <span>SCALING PRINCIPLE</span>
+      <code>目标光通量
+───────── = 缩放比例
+原始光通量</code>
+      <small>整份光强数据按同一比例缩放，配光形状保持不变。</small>
+    </div>
+  </div>
+</header>
+
+<div class="disclaimer">
+  <div class="disclaimer-box">
+    <span aria-hidden="true">!</span>
+    <p><strong>内部估算工具</strong>　输出文件仅适用于前期方案模拟、内部评估和客户初步沟通，<strong>不可作为正式测试报告、认证文件、验收依据或法律争议依据</strong>。所有正式交付项目均应重新进行光度实测。</p>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="toc" aria-label="目录">
+    <p class="toc-title">CONTENTS</p>
+    <a href="#what">1 · 这个工具是做什么的</a>
+    <a href="#quickstart">2 · 快速上手（五步）</a>
+    <a href="#estimator">3 · 估算器：不知道目标光通量？</a>
+    <a href="#source-pdf">4 · 原始 PDF 溯源（可选）</a>
+    <a href="#supplement">5 · 报告补充信息（可选）</a>
+    <a href="#result">6 · 结果与文件中心</a>
+    <a href="#faq">7 · 常见问题</a>
+    <a href="#checklist">8 · 交付前检查清单</a>
+    <a href="#support">9 · 技术支持</a>
+  </nav>
+
+  <main class="content">
+
+    <!-- ── 1. 是什么 ── -->
+    <section class="card" id="what">
+      <div class="sec-head"><p class="eyebrow">01 / OVERVIEW</p><h2>这个工具是做什么的</h2><p>一句话：把"已经实测的旧灯具"换算成"还没实测的新灯具"。</p></div>
+      <p>灯具厂家经常遇到这种情况：同系列产品只换了功率、LED 颗数或灯具长度，新规格还没来得及进光度实验室实测，但客户已经要配光文件做方案了。本工具解决的就是这个问题——</p>
+      <div class="formula-box">
+        <code>新灯具光通量
+───────── × 原光强数据 = 估算光强数据
+原灯具光通量</code>
+        <div class="fx">上传一份<b>真实测过的 IES 文件</b>，填入新旧灯具的光通量与参数，工具按统一比例缩放整份光强矩阵，输出<b>标注为 ESTIMATED 的 IES 文件</b>和一份<b>专业光度报告 PDF</b>（配光曲线、等照度图、亮度限制、区域光通量、完整光强表等，页数随数据规模自适应）。</div>
+      </div>
+      <h3>为什么按光通量、不按功率算？</h3>
+      <p>因为 LED 的光效、驱动效率和发热状态会随功率变化，<b>电功率不能可靠代表光输出</b>。按实测光通量的比例缩放，是可信度更高的做法——但即便如此，结果仍是"配光形状不变"这一假设下的<b>估算</b>。</p>
+      <h3>适用与不适用</h3>
+      <div class="table-wrap"><table>
+        <tr><th style="width:50%">✅ 适用场景</th><th>❌ 不适用场景</th></tr>
+        <tr><td>同系列灯具，仅功率或驱动电流变化</td><td>光束角变化、透镜更换、反光杯或其他光学结构变化</td></tr>
+        <tr><td>LED 数量或密度变化，但透镜、角度和光学结构不变</td><td>需要认证、招投标定版、工程验收、第三方检测或法律用途</td></tr>
+        <tr><td>灯具长度或模组数量变化，用于前期方案评估</td><td>需要 DIALux、Relux、AGi32 场景模拟或批量数据库管理</td></tr>
+        <tr><td>PWM 调光或缺少目标光通量时的辅助估算</td><td>AI 配光预测、账号体系、云端多用户部署</td></tr>
+      </table></div>
+      <h3>风险等级怎么理解</h3>
+      <div class="table-wrap"><table>
+        <tr><th>等级</th><th>含义</th><th>处理方式</th></tr>
+        <tr><td><span class="tag low">低风险</span></td><td>配光形状基本不变，估算结果可信度较高</td><td>正常生成</td></tr>
+        <tr><td><span class="tag medium">中风险</span></td><td>可能影响近场洗墙均匀性，结果仅适合初步模拟</td><td>可以生成，交付时需向客户说明均匀性待验证</td></tr>
+        <tr><td><span class="tag high">高风险</span></td><td>光学结构改变，统一倍率无法得到可信结果</td><td><b>禁止生成</b>，必须重新实测</td></tr>
+      </table></div>
+    </section>
+
+    <!-- ── 2. 快速上手 ── -->
+    <section class="card" id="quickstart">
+      <div class="sec-head"><p class="eyebrow">02 / QUICK START</p><h2>快速上手（五步完成一次换算）</h2><p>完整流程约 3 分钟。第 4 步为可选增强，跳过也能生成。</p></div>
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h4>上传并解析 IES<small>SOURCE FILE</small></h4>
+            <p>点击「选择 .ies 文件」选中原始实测文件，再点「上传并解析」，稍候页面会显示 IES 光度摘要。</p>
+            <ul>
+              <li>文件格式必须为 <span class="mono">.ies</span>，大小不超过 <b>10MB</b></li>
+              <li>仅支持 <span class="mono">TILT=NONE</span>（不含倾斜修正数据）的文件</li>
+              <li>支持 <b>Type C、Type B、Type A</b> 三种光度坐标；Type B/A 文件同样支持换算，报告中的部分分析按 Type C 约定并会标注提示</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h4>核对 IES 光度摘要<small>CORE SUMMARY</small></h4>
+            <p>上传成功后先核对这几项，确认文件没问题再往下填：</p>
+            <div class="kv-grid">
+              <div class="kv"><dt>输入功率</dt><dd>xx W</dd></div>
+              <div class="kv"><dt>灯具总光通量</dt><dd>xx lm</dd></div>
+              <div class="kv"><dt>光效</dt><dd>xx lm/W</dd></div>
+              <div class="kv"><dt>最大光强</dt><dd>xx cd</dd></div>
+              <div class="kv"><dt>50% 光束角</dt><dd>xx°</dd></div>
+              <div class="kv"><dt>配光类型</dt><dd>对称 / 非对称</dd></div>
+            </div>
+            <p class="tip">页面右上角的状态标签说明光通量从哪来：<b>「可自动带入光通量」</b>表示文件已声明，可直接用；<b>「已用积分估算预填」</b>表示是绝对光度文件，光通量由工具按光强矩阵数值积分<b>估算</b>而来，<b>请与实测值核对后再用</b>；<b>「需手动填写光通量」</b>表示文件数据不足以估算，需自行填写。</p>
+            <p class="tip">可点击展开「IES 原始技术参数」查看版本、TILT、光度类型、采样角度、倍率与灯具尺寸等原始字段，供技术人员核对。</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h4>填写目标参数<small>TARGET</small></h4>
+            <div class="table-wrap"><table>
+              <tr><th>字段</th><th>填什么</th><th>注意</th></tr>
+              <tr><td>原始实测总光通量</td><td>原始文件对应灯具的实测总光通量</td><td>单位 lm；绝对光度文件会自动预填积分估算值，需与实测值核对</td></tr>
+              <tr><td>目标型号</td><td>新灯具型号，例如 <span class="mono">WWL-3030-36W-20D</span></td><td>建议写成「型号-功率-角度」；生成的文件名取自这里</td></tr>
+              <tr><td>目标功率</td><td>新灯具整灯输入功率</td><td>单位 W；<b>不是单颗 LED 功率</b></td></tr>
+              <tr><td>目标光通量</td><td>新灯具的总光通量</td><td>单位 lm；不知道时用下方「估算器」自动算</td></tr>
+              <tr><td>发光面长度 / 宽度</td><td>出光口发光区域的尺寸</td><td>单位 mm；是<b>发光区域</b>不是灯体外壳；用于亮度限制曲线计算，必填</td></tr>
+            </table></div>
+            <p class="tip"><b>变更类型</b>选择与真实产品变化一致的一项：</p>
+            <div class="table-wrap"><table>
+              <tr><th>变更类型</th><th>风险</th><th>说明</th></tr>
+              <tr><td>仅功率或电流变化</td><td><span class="tag low">低</span></td><td>同系列、同光学结构与角度，适合估算换算</td></tr>
+              <tr><td>LED 数量或密度变化</td><td><span class="tag medium">中</span></td><td>可能影响近场洗墙均匀性，估算器会检查 LED 密度</td></tr>
+              <tr><td>灯具长度或模组变化</td><td><span class="tag medium">中</span></td><td>同步更新 IES 发光尺寸，但近场均匀性仍需验证</td></tr>
+              <tr><td>光束角变化</td><td><span class="tag high">高</span></td><td>会改变配光形状，<b>被拦截</b>，必须重新实测</td></tr>
+              <tr><td>透镜变化</td><td><span class="tag high">高</span></td><td>会改变配光形状，<b>被拦截</b>，必须重新实测</td></tr>
+              <tr><td>光学结构变化</td><td><span class="tag high">高</span></td><td>风险高，<b>被拦截</b>，必须重新实测</td></tr>
+            </table></div>
+            <p class="tip"><b>配光对中校正</b>（可选勾选）：把各平面配光曲线按自身峰值平移至正下方（γ=0°），曲线形状与光束角不变。仅适用于<b>非偏光设计</b>的灯具；洗墙灯等偏光配光<b>请勿勾选</b>。工具会检测当前文件峰值方向并给出建议。</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <h4>可选增强<small>OPTIONAL</small></h4>
+            <ul>
+              <li><b>不知道目标光通量？</b>展开估算器，按 LED 电流、颗数、模组或调光状态自动计算 → <a href="#estimator">第 3 章</a></li>
+              <li><b>上传原始光度测试 PDF</b>（≤20MB）：作为溯源附件，识别成功的版式还能额外生成一份「原版式报告」 → <a href="#source-pdf">第 4 章</a></li>
+              <li><b>标准报告补充信息</b>：企业名称、Logo、电气参数、色温、灯具外形等，全部可选 → <a href="#supplement">第 5 章</a></li>
+            </ul>
+            <p class="tip">什么都不填也可以直接生成，报告中相应位置留空。</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <h4>生成、查看与下载<small>RESULT</small></h4>
+            <p>点击「<b>生成估算 IES + 专业光度报告</b>」。处理中<b>不要刷新页面或关闭浏览器</b>。生成成功后进入结果中心：</p>
+            <ul>
+              <li><b>IES 预览</b>：确认目标型号、功率、光通量、最大光强，检查 22 项校验是否全部通过，核对配光曲线与原文件形状一致（仅幅值按比例变化）</li>
+              <li><b>报告预览</b>：直接查看 PDF，可「单独打开 PDF」</li>
+              <li><b>文件中心</b>：下载核心交付文件 IES + PDF；也可下载 HTML 网页预览、MD 说明，或对 PDF 做「选择页保存」 → <a href="#result">第 6 章</a></li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+      <div class="note plain"><span class="t">AUTOSAVE</span><p>表单填写过程会<b>实时自动保存</b>在浏览器本地：刷新页面、更换 IES 文件都不丢，下次打开还在（公司 Logo 文件除外，需重新选择）。</p></div>
+    </section>
+
+    <!-- ── 3. 估算器 ── -->
+    <section class="card" id="estimator">
+      <div class="sec-head"><p class="eyebrow">03 / FLUX ESTIMATOR</p><h2>估算器：不知道目标光通量？</h2><p>按 LED 颗数、电流曲线、模组或调光状态自动算出目标光通量，并实时同步到表单。</p></div>
+      <p>展开「不知道目标光通量？」估算器，第一步先回答：<b>你改变了什么？</b></p>
+      <div class="table-wrap"><table>
+        <tr><th>场景</th><th>需要提供的数据</th><th>适用情况</th></tr>
+        <tr><td><b>调整 LED 电流</b></td><td>原始 / 目标单颗电流 + 电流—相对光通量曲线</td><td>颗数不变，只调驱动电流</td></tr>
+        <tr><td><b>调整 LED 颗数</b></td><td>原始 / 目标颗数 + 原始发光长度</td><td>单颗电流不变；目标发光面尺寸取上方主表单填写值</td></tr>
+        <tr><td><b>颗数和电流都变</b></td><td>以上两类的数据都要</td><td>同时改颗数与电流</td></tr>
+        <tr><td><b>灯具长度 / 模组变化</b></td><td>原始 / 目标模组数量</td><td>相同结构重复扩展，自动更新 IES 发光尺寸</td></tr>
+        <tr><td><b>PWM 调光</b></td><td>原始 / 目标 PWM 占空比</td><td>DALI、0–10V、智能调光、日夜模式或应急模式（峰值电流不变）</td></tr>
+        <tr><td><b>按功率和光效估算</b></td><td>预计目标光效（lm/W）</td><td>缺少 LED 数据时的备用方式，<span class="tag high" style="font-size:10.5px">低置信度</span></td></tr>
+      </table></div>
+
+      <h3><span class="num">3.1</span>提供 LED 电流—光通量数据（三种方式任选）</h3>
+      <div class="table-wrap"><table>
+        <tr><th style="width:26%">方式</th><th>操作</th></tr>
+        <tr><td><b>选常用型号</b></td><td>从「常用 LED 型号」下拉选择，自动填入曲线；常用型号也可以自己存（见下）</td></tr>
+        <tr><td><b>粘贴或导入文件</b></td><td>文本框直接粘贴，每行一个数据点：<span class="mono">电流,相对光通量</span>（例如 <span class="mono">700,170</span>）；或导入 Excel（.xlsx/.xls，读第一个工作表前两列）、CSV、TXT</td></tr>
+        <tr><td><b>曲线截图取点</b></td><td>只有产品规格书上的曲线图片？上传 PNG/JPG/WebP 截图，半自动取点（图片只在浏览器本地处理，不上传）</td></tr>
+      </table></div>
+      <h3><span class="num">3.2</span>曲线截图取点怎么操作（四步）</h3>
+      <ol>
+        <li>先按图面刻度填写四个轴范围（X 轴最小/最大值 mA，Y 轴最小/最大值 %）</li>
+        <li>点击坐标图<b>左下角的 0/0 交点</b>（标定原点 O）</li>
+        <li>点击<b>右下角 X 轴最大刻度点</b>，再点击<b>左上角 Y 轴最大刻度点</b></li>
+        <li>沿曲线点击 <b>5–12 个数据点</b>，软件自动换算成「电流, 光通量」；采好的点可在列表里直接修正或删除，确认后导入估算器</li>
+      </ol>
+      <div class="note plain"><span class="t">TIP</span><p>前三次点击都是<b>坐标轴位置</b>，不是曲线数据点。软件会检查 O–X 是否水平、O–Y 是否垂直，标定错误时会提示，不会进入取点阶段。</p></div>
+      <h3><span class="num">3.3</span>估算结果怎么用</h3>
+      <ul>
+        <li>右侧实时显示<b>估算目标光通量</b>、建议范围与<b>置信度（高 / 中等 / 低）</b></li>
+        <li>有效结果会<b>自动同步到主表单</b>（目标光通量、原始光通量、变更类型），无需手动抄写</li>
+        <li>可填「基准点电流 + 光通量」（例如 300mA 时 218lm）：未填原始实测总光通量时，工具用它直接计算灯具总光通量；已填时按比例路径计算，基准点不参与</li>
+        <li>散热与结温条件可选「与原灯具基本相同 / 未知」；透镜与光学结构可选「完全不变 / 仅材料透过率变化（需填透过率%）/ 结构变化」</li>
+        <li>配好一组曲线可点「<b>存为常用型号</b>」，下次从下拉直接选</li>
+      </ul>
+    </section>
+
+    <!-- ── 4. 原始 PDF ── -->
+    <section class="card" id="source-pdf">
+      <div class="sec-head"><p class="eyebrow">04 / SOURCE PDF</p><h2>原始 PDF 溯源（可选）</h2><p>上传原始光度测试报告，用于数据核对，识别成功还可生成一份「原版式报告」。</p></div>
+      <p>在「原始光度测试 PDF」区域上传原厂测试报告（<b>≤20MB</b>）。原文件不会被修改，不传也不影响生成。</p>
+      <div class="table-wrap"><table>
+        <tr><th>上传后发生什么</th><th>说明</th></tr>
+        <tr><td><b>版式自动识别</b>（如惠谱 CPM-1800B 版式）</td><td>自动提取报告字段供核对，并<b>额外</b>生成一份在原版式上覆盖估算数据的「原版式报告」</td></tr>
+        <tr><td><b>版式无法自动识别</b></td><td>可人工标定：在报告首页依次框出 5 个字段（灯具型号、输入功率、总光通量、光效、最大光强），完成后同样可生成原版式报告</td></tr>
+        <tr><td><b>识别值的作用</b></td><td>只用于核对与版式叠加，<b>不会覆盖</b>目标 IES 的计算结果；标准报告始终以目标 IES 和补充表单为唯一数据源</td></tr>
+      </table></div>
+      <div class="note plain"><span class="t">NOTE</span><p>标准版专业报告<b>始终由目标 IES 统一生成</b>（页数随数据规模自适应），原版式报告是识别成功后的<b>附加可选交付物</b>，叠加失败不影响标准报告。</p></div>
+    </section>
+
+    <!-- ── 5. 补充信息 ── -->
+    <section class="card" id="supplement">
+      <div class="sec-head"><p class="eyebrow">05 / REPORT METADATA</p><h2>报告补充信息（全部可选）</h2><p>这些字段由用户提供，会在报告中与 IES 计算数据分开标识。</p></div>
+      <p>可以点「<b>选择客户模板</b>」一键填入已保存的客户资料，或填完后「<b>存为客户模板</b>」供下次复用。</p>
+      <div class="table-wrap"><table>
+        <tr><th style="width:18%">分组</th><th>字段</th><th>提示</th></tr>
+        <tr><td><b>报告身份</b></td><td>企业名称、企业网址、联系电话、生产厂家、报告编号、报告日期、产品描述</td><td>报告编号留空自动生成；日期留空自动填生成日期</td></tr>
+        <tr><td><b>电气与颜色</b></td><td>输入电压 V、输入电流 A、功率因数、相关色温 K、显色指数 Ra</td><td>输入电流填<b>整灯</b>电流，不是单颗 LED 的 mA</td></tr>
+        <tr><td><b>灯具外形</b></td><td>灯具长 / 宽 / 高 mm、等照度计算高度 m、平面计算半径 m</td><td>灯具长宽高是<b>外壳</b>尺寸，仅报告展示、不参与计算；上方已填发光面时可用「长宽与发光面相同 →」一键同步</td></tr>
+        <tr><td><b>测试条件</b></td><td>测试距离 m、测试环境温度 ℃</td><td>来自原始实测条件，如测试距离 10.43m</td></tr>
+      </table></div>
+      <div class="note plain"><span class="t">RECOMMENDED</span><p>等照度计算高度建议按行业经验取：洗墙灯 1–4m、投光灯 3–25m、路灯按杆高 6–12m；平面计算半径一般取计算高度的 3 倍左右。这两项只影响报告里的等照度图，<b>不影响 IES 数据本身</b>。</p></div>
+      <h3>Logo 与备注</h3>
+      <ul>
+        <li>公司 Logo：PNG / JPG，建议透明背景，<b>不超过 2MB</b></li>
+        <li>报告备注：最多 500 字，可填写应用场景、估算边界或客户项目备注</li>
+      </ul>
+    </section>
+
+    <!-- ── 6. 结果 ── -->
+    <section class="card" id="result">
+      <div class="sec-head"><p class="eyebrow">06 / RESULT CENTER</p><h2>结果与文件中心</h2><p>生成后自动滚动到结果中心，分三个标签页。</p></div>
+      <h3><span class="num">6.1</span>IES 预览</h3>
+      <ul>
+        <li>顶部显示<b>缩放比例</b>、风险等级与校验状态；确认「校验：<b>全部通过</b>」再下载</li>
+        <li>目标型号 / 功率 / 光通量 / 最大光强四项指标供核对</li>
+        <li>「文件检查」列出 22 项校验，每项 ✓/×；配光曲线应与原文件<b>形状一致、仅幅值按比例变化</b></li>
+        <li>必要时展开「IES 原始文本」（前 120 行）做技术核对</li>
+      </ul>
+      <h3><span class="num">6.2</span>报告预览</h3>
+      <p>内嵌查看生成的 PDF，也可点「单独打开 PDF」。报告包含产品与电气参数、极坐标/直角坐标配光曲线、归一化配光、平面与空间等照度、投影发光面亮度、照度距离、球面积分区域光通量、光度数据质量校验、完整 C-Gamma 光强表、换算依据与使用声明。</p>
+      <h3><span class="num">6.3</span>文件中心</h3>
+      <div class="table-wrap"><table>
+        <tr><th>文件</th><th>内容</th><th>用途</th></tr>
+        <tr><td><b>IES</b></td><td>目标型号估算配光文件</td><td>核心交付，用于下游设计工具</td></tr>
+        <tr><td><b>PDF</b></td><td>经典版式专业估算光度报告</td><td>核心交付，可直接发给客户</td></tr>
+        <tr><td><b>原版式 PDF</b>（如有）</td><td>在原始报告版式上覆盖估算数据</td><td>可选附加交付物，需版式识别或人工标定成功</td></tr>
+        <tr><td><b>HTML</b></td><td>网页版报告预览</td><td>网页查看或内部留档</td></tr>
+        <tr><td><b>MD</b></td><td>内部说明（换算依据等）</td><td>内部留档</td></tr>
+        <tr><td><b>原始 PDF</b>（如有上传）</td><td>原件预览</td><td>溯源核对，原文件不被改写</td></tr>
+      </table></div>
+      <h3><span class="num">6.4</span>选择页保存</h3>
+      <p>PDF 页数多、只想发其中几页？在文件中心点「选择页保存 ▾」，输入页码范围，例如 <span class="mono">1-11</span> 或 <span class="mono">1,3,5-8</span>，即可下载一个只含所选页的新 PDF（原文件不变）。</p>
+      <div class="note warn"><span class="t">RETENTION</span><p>服务器上的上传与生成文件<b>保留 24 小时</b>后自动清理；服务重启也会清除上传记录。请生成后<b>及时下载</b>，隔天再下载可能提示「文件不存在」，重新上传生成即可。</p></div>
+    </section>
+
+    <!-- ── 7. FAQ ── -->
+    <section class="card" id="faq">
+      <div class="sec-head"><p class="eyebrow">07 / FAQ</p><h2>常见问题</h2></div>
+      <details class="faq"><summary>绝对光度文件的光通量要自己填吗？</summary><div class="faq-a"><p>IES 未声明光通量时，工具会按光强矩阵数值积分估算并<b>预填</b>一个值。这个值是估算的，<b>请与实测报告核对后使用</b>；如无法积分则需手动填写。</p></div></details>
+      <details class="faq"><summary>Type B / Type A 文件能用吗？有什么区别？</summary><div class="faq-a"><p>能用。光通量缩放对任意光度坐标都正确，输出 IES 保持原坐标。区别在报告分析：光束角按 H≈0 剖面 FWHM 计算，配光分析基于 Type B→C 球面重采样，按 Type C 约定展示并标注提示，仅供参考。</p></div></details>
+      <details class="faq"><summary>为什么有些变更类型不能生成？</summary><div class="faq-a"><p>光束角、透镜、光学结构变化会改变<b>配光形状</b>，统一倍率缩放得不到可信结果，工具会拦截并提示「必须重新实测」。这不是 bug，是防止发出错误数据。</p></div></details>
+      <details class="faq"><summary>中风险可以继续生成吗？</summary><div class="faq-a"><p>可以，用于前期方案模拟没问题。但 LED 数量/密度或灯具长度变化可能影响<b>近场洗墙均匀性</b>，交付时建议向客户说明，正式定版前安排实测验证。</p></div></details>
+      <details class="faq"><summary>为什么按光通量比、不按功率比缩放？</summary><div class="faq-a"><p>LED 光效、驱动效率、热状态都随功率变化，电功率不能可靠代表光输出；实测光通量的比例更接近真实光输出关系。即便如此，结果仍是「配光形状不变」假设下的估算。</p></div></details>
+      <details class="faq"><summary>上传失败常见原因有哪些？</summary><div class="faq-a"><p>① 不是 <span class="mono">.ies</span> 后缀；② 文件超过 10MB；③ 文件含 TILT=INCLUDE / TILT=FILE（仅支持 TILT=NONE）；④ 文件结构不完整，解析被拒。报错信息会说明具体原因。</p></div></details>
+      <details class="faq"><summary>生成过程中刷新了页面怎么办？</summary><div class="faq-a"><p>生成会中断，需要重新点生成。生成期间请勿刷新或关闭页面；生成成功后表单会自动保存，刷新不丢数据。</p></div></details>
+      <details class="faq"><summary>隔天回来下载提示「文件不存在」？</summary><div class="faq-a"><p>服务器文件保留 24 小时自动清理，服务重启也会清除上传记录。重新上传 IES 再生成一次即可。</p></div></details>
+      <details class="faq"><summary>填了一半的表单刷新会丢吗？</summary><div class="faq-a"><p>不会。表单与估算器输入都实时保存在浏览器本地，刷新、换文件、下次打开都在（公司 Logo 文件除外，需重新选择）。<b>换浏览器或清除浏览器数据会丢。</b></p></div></details>
+      <details class="faq"><summary>报告页数为什么每次不一样？</summary><div class="faq-a"><p>页数随数据规模自适应：光强表按 γ5°×C15° 抽样展示（完整数据以 IES 文件为准），角度数量越多页数越多。同一文件生成结果应一致。</p></div></details>
+      <details class="faq"><summary>标准报告和原版式报告是什么关系？</summary><div class="faq-a"><p>标准报告始终由目标 IES 生成，是<b>主要交付物</b>。原版式报告是把估算数据覆盖到原始测试报告的版式上，只有版式自动识别成功或人工标定完成才生成，是<b>附加</b>交付物。</p></div></details>
+      <details class="faq"><summary>配光对中校正要不要勾？</summary><div class="faq-a"><p>非偏光设计的灯具，若最大光强方向偏离正下方（γ 超过 1°），建议勾选，各平面曲线会按峰值平移对中，形状与光束角不变。洗墙灯等<b>偏光配光不要勾</b>。工具会根据文件自动提示。</p></div></details>
+    </section>
+
+    <!-- ── 8. 检查清单 ── -->
+    <section class="card" id="checklist">
+      <div class="sec-head"><p class="eyebrow">08 / CHECKLIST</p><h2>交付前检查清单</h2><p>每次对外交付估算文件前，逐项确认：</p></div>
+      <ul class="checklist">
+        <li><span class="box" aria-hidden="true"></span>原始 IES 来自可信的光度实测</li>
+        <li><span class="box" aria-hidden="true"></span>原始实测总光通量填写正确（绝对光度文件已与实测值核对）</li>
+        <li><span class="box" aria-hidden="true"></span>目标型号、功率、光通量和发光面尺寸与产品资料一致</li>
+        <li><span class="box" aria-hidden="true"></span>变更类型与真实产品变化一致，没有用低风险规避高风险拦截</li>
+        <li><span class="box" aria-hidden="true"></span>结果页显示「校验：全部通过」</li>
+        <li><span class="box" aria-hidden="true"></span>IES 与 PDF 均已下载、打开并检查</li>
+        <li><span class="box" aria-hidden="true"></span>已向客户声明文件为 ESTIMATED 估算结果，非认证级测试报告</li>
+        <li><span class="box" aria-hidden="true"></span>正式认证、验收或定版前已安排重新实测</li>
+      </ul>
+    </section>
+
+    <!-- ── 9. 支持 ── -->
+    <section class="card" id="support">
+      <div class="sec-head"><p class="eyebrow">09 / SUPPORT</p><h2>技术支持</h2></div>
+      <p>遇到问题需要反馈时，请尽量同时提供：</p>
+      <ul>
+        <li>原始 IES 文件（如可提供）</li>
+        <li>填写过的目标参数与变更类型</li>
+        <li>完整错误提示截图</li>
+        <li>浏览器类型、出现问题的时间，以及期间是否发生过服务重启</li>
+      </ul>
+      <p style="margin-top:14px">你的 AI 使用顾问：<b class="mono">周海波 13601845391</b></p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand"><span class="footer-mark">IES</span><span>IES SCALING TOOL · USER GUIDE · v1.3.0</span></div>
+  </div>
+  <p class="footer-note">所有正式交付项目均应重新进行光度实测</p>
+</footer>
+
+<script>
+  // 目录滚动高亮
+  (function(){
+    const links=[...document.querySelectorAll('nav.toc a')];
+    const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+    const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sections=[...map.keys()].map(id=>document.getElementById(id)).filter(Boolean);
+    if(!('IntersectionObserver' in window)||!sections.length)return;
+    let current='';
+    const io=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{if(e.isIntersecting)current=e.target.id});
+      links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+current));
+    },{rootMargin:'-15% 0px -70% 0px'});
+    sections.forEach(s=>io.observe(s));
+    document.querySelectorAll('nav.toc a').forEach(a=>{
+      a.addEventListener('click',e=>{
+        const el=document.getElementById(a.getAttribute('href').slice(1));
+        if(el)e.preventDefault(),el.scrollIntoView({behavior:reduce.matches?'auto':'smooth',block:'start'});
+      });
+    });
+  })();
+</script>
